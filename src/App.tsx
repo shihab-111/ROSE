@@ -91,6 +91,12 @@ export interface StoreConfig {
   bkashMerchant: string;
   nagadMerchant: string;
   rocketMerchant: string;
+  bkashType?: string;
+  nagadType?: string;
+  rocketType?: string;
+  bkashInstructions?: string;
+  nagadInstructions?: string;
+  rocketInstructions?: string;
   adminPin: string;
 }
 
@@ -186,6 +192,12 @@ const DEFAULT_STORE_CONFIG: StoreConfig = {
   bkashMerchant: "01711-889900",
   nagadMerchant: "01819-556677",
   rocketMerchant: "01911-334455",
+  bkashType: "Personal (Send Money)",
+  nagadType: "Personal (Send Money)",
+  rocketType: "Personal (Send Money)",
+  bkashInstructions: "Send Money to our personal bKash number via bKash App or *247# and submit the TrxID below.",
+  nagadInstructions: "Send Money to our personal Nagad number via Nagad App or *167# and submit the TrxID below.",
+  rocketInstructions: "Send Money to our 12-digit DBBL Rocket number via Rocket App or *322# and submit the TrxID below.",
   adminPin: "2026"
 };
 
@@ -767,7 +779,7 @@ export default function App() {
   const [storeConfig, setStoreConfig] = useState<StoreConfig>(() => {
     try {
       const saved = localStorage.getItem('edr_store_config');
-      return saved ? JSON.parse(saved) : DEFAULT_STORE_CONFIG;
+      return saved ? { ...DEFAULT_STORE_CONFIG, ...JSON.parse(saved) } : DEFAULT_STORE_CONFIG;
     } catch {
       return DEFAULT_STORE_CONFIG;
     }
@@ -863,7 +875,7 @@ export default function App() {
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [adminPinInput, setAdminPinInput] = useState('');
   const [adminPinError, setAdminPinError] = useState('');
-  const [adminTab, setAdminTab] = useState<'dashboard' | 'products' | 'banner' | 'orders' | 'github'>('dashboard');
+  const [adminTab, setAdminTab] = useState<'dashboard' | 'products' | 'payments' | 'banner' | 'orders' | 'github'>('dashboard');
 
   // Thermal Receipt Printing & Orders Filter State
   const [receiptOrder, setReceiptOrder] = useState<OrderRecord | null>(null);
@@ -872,7 +884,18 @@ export default function App() {
   const [adminOrderFilter, setAdminOrderFilter] = useState<'All' | 'Pending' | 'Confirmed' | 'Shipped' | 'Delivered' | 'Cancelled'>('All');
 
   // Admin Forms
-  const [bannerForm, setBannerForm] = useState<StoreConfig>(DEFAULT_STORE_CONFIG);
+  const [bannerForm, setBannerForm] = useState<StoreConfig>(() => {
+    try {
+      const saved = localStorage.getItem('edr_store_config');
+      return saved ? { ...DEFAULT_STORE_CONFIG, ...JSON.parse(saved) } : DEFAULT_STORE_CONFIG;
+    } catch {
+      return DEFAULT_STORE_CONFIG;
+    }
+  });
+
+  useEffect(() => {
+    setBannerForm((prev) => ({ ...DEFAULT_STORE_CONFIG, ...prev, ...storeConfig }));
+  }, [storeConfig]);
   const [editingProduct, setEditingProduct] = useState<PerfumeProduct | null>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productForm, setProductForm] = useState({
@@ -1251,9 +1274,14 @@ export default function App() {
     }
   };
 
-  const handleSaveStoreConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveStoreConfig = async (
+    e?: React.FormEvent,
+    successMsg = "Store settings & payment numbers saved live!"
+  ) => {
+    if (e && e.preventDefault) e.preventDefault();
     const updatedConfig: StoreConfig = {
+      ...DEFAULT_STORE_CONFIG,
+      ...storeConfig,
       ...bannerForm,
       insideDhakaFee: Number(bannerForm.insideDhakaFee),
       suburbsDhakaFee: Number(bannerForm.suburbsDhakaFee),
@@ -1262,6 +1290,7 @@ export default function App() {
     };
 
     try {
+      localStorage.setItem('edr_store_config', JSON.stringify(updatedConfig));
       if (getApps().length > 0) {
         const db = getFirestore(getApp());
         const appId = (window as any).__app_id || 'eclat-de-rose-bd';
@@ -1273,10 +1302,60 @@ export default function App() {
     }
 
     setStoreConfig(updatedConfig);
+    setBannerForm(updatedConfig);
     if (bannerForm.bgAnimationMode) {
       setBgMode(bannerForm.bgAnimationMode);
     }
-    showToast("Storefront Banner, Background Aura & Fees updated live!");
+    showToast(successMsg);
+  };
+
+  const handleCreateSampleOrder = () => {
+    const demoOrder: OrderRecord = {
+      orderNumber: `EDR-${Math.floor(1000 + Math.random() * 9000)}`,
+      customerName: "Ayesha Rahman",
+      phone: "01755123456",
+      district: "Dhaka City (Inside Dhaka)",
+      deliveryZone: "inside",
+      address: "House 42, Road 11, Block D, Banani",
+      courier: "Steadfast Courier",
+      paymentMethod: "bKash",
+      senderNumber: "01755123456",
+      trxId: "9K2M7X19QL",
+      notes: "Please call before delivery. Fragile perfume flacon.",
+      items: [
+        {
+          id: products[0]?.id || "perfume-1",
+          name: products[0]?.name || "Rose de Dhaka Extrait",
+          volume: "100ml",
+          price: products[0]?.price || 3850,
+          costPrice: products[0]?.costPrice || 1850,
+          quantity: 1,
+          image: products[0]?.image || "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539"
+        },
+        {
+          id: products[1]?.id || "perfume-2",
+          name: products[1]?.name || "Sylhet Rain & White Tea",
+          volume: "10ml Decant",
+          price: 650,
+          costPrice: 300,
+          quantity: 2,
+          image: products[1]?.image || "https://images.unsplash.com/photo-1541643600914-78b084683601"
+        }
+      ],
+      subtotal: 5150,
+      discount: 0,
+      shippingFee: 0,
+      totalAmount: 5150,
+      status: "Confirmed",
+      createdAt: Date.now(),
+      createdDateStr: new Date().toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      })
+    };
+
+    setOrders((prev) => [demoOrder, ...prev]);
+    showToast("Sample customer order created! You can now print the thermal receipt.");
   };
 
   const openAddProductModal = () => {
@@ -2331,6 +2410,7 @@ export default function App() {
                   {[
                     { id: 'dashboard' as const, label: 'Analytics & Revenue', icon: BarChart3 },
                     { id: 'products' as const, label: `Perfumes (${products.length})`, icon: Package },
+                    { id: 'payments' as const, label: 'bKash / Nagad / Rocket', icon: CreditCard },
                     { id: 'banner' as const, label: 'Banner & BD Fees', icon: Edit3 },
                     { id: 'orders' as const, label: `Orders (${orders.length})`, icon: ShoppingCart },
                     { id: 'github' as const, label: 'Deployment Guide', icon: Layers }
@@ -2408,6 +2488,45 @@ export default function App() {
                         {adminMetrics.lowStockProducts.length} Fragrances Low in Stock
                       </p>
                     </div>
+                  </div>
+
+                  {/* Quick Mobile Banking Numbers Widget */}
+                  <div className="glass-card p-5 rounded-3xl border border-rose-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 bg-gradient-to-r from-rose-50/70 via-pink-50/50 to-white">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-600 to-pink-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-serif-luxury text-lg font-bold text-slate-900">
+                            Active Mobile Banking Gateways
+                          </h4>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                            Live on Checkout
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
+                          <span className="px-2.5 py-0.5 rounded-lg bg-pink-100 text-pink-800 font-bold font-mono">
+                            bKash: {storeConfig.bkashMerchant}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-lg bg-orange-100 text-orange-800 font-bold font-mono">
+                            Nagad: {storeConfig.nagadMerchant}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-lg bg-purple-100 text-purple-800 font-bold font-mono">
+                            Rocket: {storeConfig.rocketMerchant}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setAdminTab('payments')}
+                      className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Change / Set Numbers</span>
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2609,6 +2728,345 @@ export default function App() {
                 </div>
               )}
 
+              {/* TAB: PAYMENTS (bKash / Nagad / Rocket) */}
+              {adminTab === 'payments' && (
+                <div className="space-y-6">
+                  <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-6">
+                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-rose-200/70 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 text-white flex items-center justify-center shadow-md shadow-rose-200">
+                          <CreditCard className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h2 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-slate-900">
+                            Mobile Banking Numbers (bKash • Nagad • Rocket)
+                          </h2>
+                          <p className="text-xs text-slate-500">
+                            Configure your merchant or personal account numbers. Customers will copy these numbers with 1-tap during checkout to send payment and submit their TrxID.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          Live Sync Active
+                        </span>
+                      </div>
+                    </div>
+
+                    <form onSubmit={(e) => handleSaveStoreConfig(e, "bKash, Nagad & Rocket mobile banking numbers updated and active live!")} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        {/* 1. bKash Card */}
+                        <div className="p-5 rounded-2xl bg-gradient-to-b from-pink-50/90 to-rose-50/70 border-2 border-pink-200/90 shadow-sm space-y-4 flex flex-col justify-between">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="px-3 py-1 rounded-full bg-[#E2136E] text-white text-[11px] font-black tracking-wider uppercase shadow-sm">
+                                bKash Payment
+                              </span>
+                              <span className="text-[10px] font-bold text-pink-700 bg-pink-100 px-2 py-0.5 rounded-md">
+                                Most Popular
+                              </span>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold text-slate-800 mb-1">
+                                bKash Account Number *
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={bannerForm.bkashMerchant}
+                                onChange={(e) => setBannerForm({ ...bannerForm, bkashMerchant: e.target.value })}
+                                placeholder="017XXXXXXXX"
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-pink-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#E2136E]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                Account Type
+                              </label>
+                              <select
+                                value={bannerForm.bkashType || "Personal (Send Money)"}
+                                onChange={(e) => setBannerForm({ ...bannerForm, bkashType: e.target.value })}
+                                className="w-full px-3 py-2 rounded-xl bg-white border border-pink-200 text-xs font-semibold text-slate-800"
+                              >
+                                <option value="Personal (Send Money)">Personal (Send Money)</option>
+                                <option value="Merchant (Make Payment)">Merchant (Make Payment)</option>
+                                <option value="Agent (Cash Out)">Agent (Cash Out)</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                Customer Instructions
+                              </label>
+                              <textarea
+                                rows={2}
+                                value={bannerForm.bkashInstructions || ''}
+                                onChange={(e) => setBannerForm({ ...bannerForm, bkashInstructions: e.target.value })}
+                                placeholder="Instructions for customer during checkout..."
+                                className="w-full px-3 py-1.5 rounded-xl bg-white border border-pink-200 text-xs text-slate-700"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="pt-3 border-t border-pink-200 flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-500">Test Copy:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard?.writeText(bannerForm.bkashMerchant);
+                                showToast(`Copied bKash Number: ${bannerForm.bkashMerchant}`);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-white border border-pink-300 text-xs font-bold text-[#E2136E] hover:bg-pink-100 transition-all flex items-center gap-1.5"
+                            >
+                              <Copy className="w-3.5 h-3.5" /> Copy bKash
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 2. Nagad Card */}
+                        <div className="p-5 rounded-2xl bg-gradient-to-b from-orange-50/90 to-amber-50/70 border-2 border-orange-200/90 shadow-sm space-y-4 flex flex-col justify-between">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="px-3 py-1 rounded-full bg-[#F7941D] text-white text-[11px] font-black tracking-wider uppercase shadow-sm">
+                                Nagad Payment
+                              </span>
+                              <span className="text-[10px] font-bold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-md">
+                                Instant
+                              </span>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold text-slate-800 mb-1">
+                                Nagad Account Number *
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={bannerForm.nagadMerchant}
+                                onChange={(e) => setBannerForm({ ...bannerForm, nagadMerchant: e.target.value })}
+                                placeholder="018XXXXXXXX"
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-orange-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F7941D]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                Account Type
+                              </label>
+                              <select
+                                value={bannerForm.nagadType || "Personal (Send Money)"}
+                                onChange={(e) => setBannerForm({ ...bannerForm, nagadType: e.target.value })}
+                                className="w-full px-3 py-2 rounded-xl bg-white border border-orange-200 text-xs font-semibold text-slate-800"
+                              >
+                                <option value="Personal (Send Money)">Personal (Send Money)</option>
+                                <option value="Merchant (Make Payment)">Merchant (Make Payment)</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                Customer Instructions
+                              </label>
+                              <textarea
+                                rows={2}
+                                value={bannerForm.nagadInstructions || ''}
+                                onChange={(e) => setBannerForm({ ...bannerForm, nagadInstructions: e.target.value })}
+                                placeholder="Instructions for customer during checkout..."
+                                className="w-full px-3 py-1.5 rounded-xl bg-white border border-orange-200 text-xs text-slate-700"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="pt-3 border-t border-orange-200 flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-500">Test Copy:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard?.writeText(bannerForm.nagadMerchant);
+                                showToast(`Copied Nagad Number: ${bannerForm.nagadMerchant}`);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-white border border-orange-300 text-xs font-bold text-[#F7941D] hover:bg-orange-100 transition-all flex items-center gap-1.5"
+                            >
+                              <Copy className="w-3.5 h-3.5" /> Copy Nagad
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 3. Rocket Card */}
+                        <div className="p-5 rounded-2xl bg-gradient-to-b from-purple-50/90 to-indigo-50/70 border-2 border-purple-200/90 shadow-sm space-y-4 flex flex-col justify-between">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="px-3 py-1 rounded-full bg-[#8C3494] text-white text-[11px] font-black tracking-wider uppercase shadow-sm">
+                                DBBL Rocket
+                              </span>
+                              <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md">
+                                Banking
+                              </span>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold text-slate-800 mb-1">
+                                Rocket Account Number *
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={bannerForm.rocketMerchant}
+                                onChange={(e) => setBannerForm({ ...bannerForm, rocketMerchant: e.target.value })}
+                                placeholder="019XXXXXXXX-X"
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-purple-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#8C3494]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                Account Type
+                              </label>
+                              <select
+                                value={bannerForm.rocketType || "Personal (Send Money)"}
+                                onChange={(e) => setBannerForm({ ...bannerForm, rocketType: e.target.value })}
+                                className="w-full px-3 py-2 rounded-xl bg-white border border-purple-200 text-xs font-semibold text-slate-800"
+                              >
+                                <option value="Personal (Send Money)">Personal (Send Money)</option>
+                                <option value="Merchant (Make Payment)">Merchant (Make Payment)</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                Customer Instructions
+                              </label>
+                              <textarea
+                                rows={2}
+                                value={bannerForm.rocketInstructions || ''}
+                                onChange={(e) => setBannerForm({ ...bannerForm, rocketInstructions: e.target.value })}
+                                placeholder="Instructions for customer during checkout..."
+                                className="w-full px-3 py-1.5 rounded-xl bg-white border border-purple-200 text-xs text-slate-700"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="pt-3 border-t border-purple-200 flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-500">Test Copy:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard?.writeText(bannerForm.rocketMerchant);
+                                showToast(`Copied Rocket Number: ${bannerForm.rocketMerchant}`);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-white border border-purple-300 text-xs font-bold text-[#8C3494] hover:bg-purple-100 transition-all flex items-center gap-1.5"
+                            >
+                              <Copy className="w-3.5 h-3.5" /> Copy Rocket
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-rose-200/80">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBannerForm({
+                                ...bannerForm,
+                                bkashMerchant: DEFAULT_STORE_CONFIG.bkashMerchant,
+                                nagadMerchant: DEFAULT_STORE_CONFIG.nagadMerchant,
+                                rocketMerchant: DEFAULT_STORE_CONFIG.rocketMerchant,
+                                bkashType: DEFAULT_STORE_CONFIG.bkashType,
+                                nagadType: DEFAULT_STORE_CONFIG.nagadType,
+                                rocketType: DEFAULT_STORE_CONFIG.rocketType
+                              });
+                              showToast("Restored demo standard mobile banking numbers");
+                            }}
+                            className="text-xs font-bold text-slate-500 hover:text-rose-700 underline"
+                          >
+                            Reset to Default Numbers
+                          </button>
+                          <span className="text-slate-300">•</span>
+                          <span className="text-xs text-slate-500">
+                            Immediate real-time sync to all customer checkout screens.
+                          </span>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 text-white font-bold text-sm shadow-xl shadow-rose-300/60 hover:opacity-95 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Check className="w-4 h-4" /> Save & Update Payment Numbers
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Customer Checkout Preview Simulation Card */}
+                  <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-4 border border-rose-200">
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-rose-600 block">
+                      Live Customer Checkout Simulation
+                    </span>
+                    <h3 className="font-serif-luxury text-2xl font-bold text-slate-900">
+                      How Customers Experience Your Payment Gateways
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Here is the exact live UI customers interact with when selecting a mobile payment method during checkout:
+                    </p>
+
+                    <div className="p-5 rounded-2xl bg-white border border-rose-200 space-y-4 max-w-lg">
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div className="p-2.5 rounded-xl border border-pink-400 bg-pink-50 font-bold text-pink-700">
+                          bKash
+                        </div>
+                        <div className="p-2.5 rounded-xl border border-orange-400 bg-orange-50 font-bold text-orange-700">
+                          Nagad
+                        </div>
+                        <div className="p-2.5 rounded-xl border border-purple-400 bg-purple-50 font-bold text-purple-700">
+                          Rocket
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-rose-50/80 border border-rose-200 space-y-3">
+                        <div className="flex items-center justify-between text-xs font-bold text-rose-900">
+                          <div>
+                            <span>bKash Number:</span>
+                            <span className="block text-[10px] text-pink-700 font-normal">
+                              {bannerForm.bkashType || 'Personal (Send Money)'}
+                            </span>
+                          </div>
+                          <span className="font-mono bg-white px-2.5 py-1 rounded-lg border border-rose-200 text-rose-700 font-bold">
+                            {bannerForm.bkashMerchant}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs font-bold text-orange-900">
+                          <div>
+                            <span>Nagad Number:</span>
+                            <span className="block text-[10px] text-orange-700 font-normal">
+                              {bannerForm.nagadType || 'Personal (Send Money)'}
+                            </span>
+                          </div>
+                          <span className="font-mono bg-white px-2.5 py-1 rounded-lg border border-orange-200 text-orange-700 font-bold">
+                            {bannerForm.nagadMerchant}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs font-bold text-purple-900">
+                          <div>
+                            <span>Rocket Number:</span>
+                            <span className="block text-[10px] text-purple-700 font-normal">
+                              {bannerForm.rocketType || 'Personal (Send Money)'}
+                            </span>
+                          </div>
+                          <span className="font-mono bg-white px-2.5 py-1 rounded-lg border border-purple-200 text-purple-700 font-bold">
+                            {bannerForm.rocketMerchant}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* TAB 3: BANNER & FEES */}
               {adminTab === 'banner' && (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -2774,7 +3232,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
                         <div>
                           <label className="block text-[11px] font-bold text-slate-600 mb-1">bKash Merchant No.</label>
                           <input
@@ -2790,6 +3248,15 @@ export default function App() {
                             type="text"
                             value={bannerForm.nagadMerchant}
                             onChange={(e) => setBannerForm({ ...bannerForm, nagadMerchant: e.target.value })}
+                            className="w-full px-3 py-2 rounded-xl bg-white border border-rose-200 text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Rocket Merchant No.</label>
+                          <input
+                            type="text"
+                            value={bannerForm.rocketMerchant}
+                            onChange={(e) => setBannerForm({ ...bannerForm, rocketMerchant: e.target.value })}
                             className="w-full px-3 py-2 rounded-xl bg-white border border-rose-200 text-xs font-bold"
                           />
                         </div>
@@ -2861,6 +3328,16 @@ export default function App() {
                         Verify bKash/Nagad transactions, dispatch couriers, and generate printable 80mm/58mm thermal receipts.
                       </p>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCreateSampleOrder}
+                      className="px-4 py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition-all flex items-center gap-1.5 shadow-sm hover:scale-105"
+                      title="Create sample order for thermal receipt testing"
+                    >
+                      <Plus className="w-4 h-4 text-rose-600" />
+                      <span>Create Sample Order</span>
+                    </button>
                   </div>
 
                   {/* Search & Status Filter Controls */}
@@ -2894,8 +3371,23 @@ export default function App() {
                   </div>
 
                   {orders.length === 0 ? (
-                    <div className="text-center py-12 text-slate-500 text-sm">
-                      No customer orders yet.
+                    <div className="text-center py-12 space-y-4">
+                      <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                        <ShoppingCart className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">No Customer Orders Yet</h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Click below to generate a realistic sample customer order and test the thermal POS receipt printing immediately.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCreateSampleOrder}
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 text-white font-bold text-xs shadow-md shadow-rose-200 transition-all hover:opacity-95"
+                      >
+                        ⚡ Generate Sample Order for Thermal Print Testing
+                      </button>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -2953,7 +3445,7 @@ export default function App() {
                               </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-3 self-end lg:self-center shrink-0">
+                            <div className="flex flex-wrap items-center gap-2.5 self-end lg:self-center shrink-0">
                               <div className="text-right mr-1">
                                 <span className="text-[11px] text-slate-400 block">Grand Total</span>
                                 <span className="text-lg font-extrabold text-rose-600">
@@ -2961,15 +3453,48 @@ export default function App() {
                                 </span>
                               </div>
 
-                              {/* Thermal Print Trigger Button */}
+                              {/* Thermal Print Modal Trigger */}
                               <button
                                 type="button"
                                 onClick={() => setReceiptOrder(order)}
                                 className="px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold flex items-center gap-1.5 shadow-sm hover:scale-105 transition-all"
-                                title="Print Thermal POS Receipt"
+                                title="Open Formatted Thermal POS Receipt"
                               >
                                 <Printer className="w-3.5 h-3.5 text-rose-300" />
                                 <span>Thermal Receipt</span>
+                              </button>
+
+                              {/* Quick 1-Click Print */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReceiptOrder(order);
+                                  setTimeout(() => window.print(), 150);
+                                }}
+                                className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-all"
+                                title="Instant 1-Click Print"
+                              >
+                                <Printer className="w-4 h-4 text-slate-700" />
+                              </button>
+
+                              {/* Copy Courier Booking Note */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const courierText = `Order: ${order.orderNumber}
+Customer: ${order.customerName}
+Phone: ${order.phone}
+Address: ${order.address}, ${order.district}
+Courier: ${order.courier}
+Items: ${(order.items || []).map((i) => `${i.name} (${i.volume}) x${i.quantity}`).join(', ')}
+COD Collection: ৳${order.paymentMethod === 'COD' ? order.totalAmount : 0}`;
+                                  navigator.clipboard?.writeText(courierText);
+                                  showToast(`Copied dispatch info for ${order.orderNumber}`);
+                                }}
+                                className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+                                title="Copy Courier Dispatch Note"
+                              >
+                                <Copy className="w-4 h-4" />
                               </button>
 
                               <select
@@ -2977,7 +3502,7 @@ export default function App() {
                                 onChange={(e) =>
                                   handleUpdateOrderStatus(order.orderNumber, e.target.value as OrderRecord['status'])
                                 }
-                                className="px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                                className="px-3 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
                               >
                                 <option value="Pending">Pending Verification</option>
                                 <option value="Confirmed">Confirmed & Packed</option>
@@ -3552,12 +4077,32 @@ git push -u origin main`}</pre>
 
                 <button
                   type="button"
+                  onClick={() => {
+                    const courierText = `Order: ${receiptOrder.orderNumber}
+Customer: ${receiptOrder.customerName}
+Phone: ${receiptOrder.phone}
+Address: ${receiptOrder.address}, ${receiptOrder.district}
+Courier: ${receiptOrder.courier}
+Items: ${(receiptOrder.items || []).map((i) => `${i.name} (${i.volume}) x${i.quantity}`).join(', ')}
+COD Collection: ৳${receiptOrder.paymentMethod === 'COD' ? receiptOrder.totalAmount : 0}`;
+                    navigator.clipboard?.writeText(courierText);
+                    showToast("Courier dispatch info copied to clipboard!");
+                  }}
+                  className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold flex items-center gap-1.5 border border-slate-300 shadow-sm transition-all"
+                  title="Copy for Steadfast / Pathao Courier Panel"
+                >
+                  <Copy className="w-3.5 h-3.5 text-slate-600" />
+                  <span className="hidden sm:inline">Copy Note</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => window.print()}
                   className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-slate-400/50 hover:scale-105 transition-all"
                   title="Print to POS Thermal Printer"
                 >
                   <Printer className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Print Receipt</span>
+                  <span>Print</span>
                 </button>
 
                 <button
@@ -3576,8 +4121,8 @@ git push -u origin main`}</pre>
               {/* PRINTABLE RECEIPT ELEMENT (targeted by @media print) */}
               <div
                 id="thermal-receipt-print"
-                className={`bg-white text-slate-950 font-mono shadow-lg border border-slate-300 p-5 rounded-sm transition-all leading-relaxed ${
-                  receiptPaperWidth === '58mm' ? 'w-[280px] text-[10px]' : 'w-[350px] text-xs'
+                className={`receipt-${receiptPaperWidth} bg-white text-slate-950 font-mono shadow-lg border border-slate-300 p-5 rounded-sm transition-all leading-relaxed ${
+                  receiptPaperWidth === '58mm' ? 'w-[280px] text-[10px]' : 'w-[360px] text-xs'
                 }`}
               >
                 {/* Store Header */}
@@ -3592,8 +4137,13 @@ git push -u origin main`}</pre>
                     Flagship: Road 11, Banani, Dhaka-1213
                   </div>
                   <div className="text-[10px] text-slate-600">
-                    Hotline: {storeConfig.bkashMerchant} • www.eclatderose.com
+                    bKash: {storeConfig.bkashMerchant} • Nagad: {storeConfig.nagadMerchant}
                   </div>
+                  {storeConfig.rocketMerchant && (
+                    <div className="text-[10px] text-slate-600">
+                      Rocket: {storeConfig.rocketMerchant} • www.eclatderose.com
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-center font-bold tracking-tight text-slate-400 select-none">
@@ -3604,7 +4154,7 @@ git push -u origin main`}</pre>
                 <div className="space-y-0.5 py-1 text-[11px]">
                   <div className="flex justify-between">
                     <span className="font-bold">INVOICE NO:</span>
-                    <span className="font-extrabold">{receiptOrder.orderNumber}</span>
+                    <span className="font-extrabold font-mono">{receiptOrder.orderNumber}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-bold">DATE/TIME :</span>
@@ -3619,14 +4169,32 @@ git push -u origin main`}</pre>
                     <span>{receiptOrder.courier}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-bold">PAYMENT   :</span>
+                    <span className="font-bold">ZONE      :</span>
+                    <span>
+                      {receiptOrder.deliveryZone === 'inside'
+                        ? 'Inside Dhaka'
+                        : receiptOrder.deliveryZone === 'suburbs'
+                        ? 'Dhaka Suburbs'
+                        : 'Outside Dhaka'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">PAY METHOD:</span>
                     <span className="font-bold">{receiptOrder.paymentMethod}</span>
                   </div>
                   {receiptOrder.paymentMethod !== 'COD' && (
-                    <div className="flex justify-between text-[10px]">
-                      <span className="font-bold">TRX ID    :</span>
-                      <span className="font-mono font-bold">{receiptOrder.trxId}</span>
-                    </div>
+                    <>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="font-bold">TRX ID    :</span>
+                        <span className="font-mono font-bold">{receiptOrder.trxId}</span>
+                      </div>
+                      {receiptOrder.senderNumber && (
+                        <div className="flex justify-between text-[10px]">
+                          <span className="font-bold">SENDER NO :</span>
+                          <span className="font-mono">{receiptOrder.senderNumber}</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -3639,14 +4207,19 @@ git push -u origin main`}</pre>
                   <div className="font-bold uppercase text-[10px] text-slate-600">
                     BILL & DELIVER TO:
                   </div>
-                  <div className="font-extrabold text-slate-900">
+                  <div className="font-extrabold text-slate-900 text-xs">
                     {receiptOrder.customerName}
                   </div>
-                  <div>Phone: <strong>{receiptOrder.phone}</strong></div>
-                  <div>Dest : {receiptOrder.district}</div>
+                  <div>PHONE: <strong className="font-mono">{receiptOrder.phone}</strong></div>
+                  <div>DEST : {receiptOrder.district}</div>
                   <div className="text-[10px] leading-tight text-slate-800">
-                    Addr : {receiptOrder.address}
+                    ADDR : {receiptOrder.address}
                   </div>
+                  {receiptOrder.notes && (
+                    <div className="text-[10px] italic text-slate-600 pt-0.5">
+                      NOTE : {receiptOrder.notes}
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-center font-bold tracking-tight text-slate-400 select-none">
@@ -3707,6 +4280,23 @@ git push -u origin main`}</pre>
                 <div className="flex justify-between items-baseline py-1 text-sm font-black text-slate-950">
                   <span className="tracking-wider">TOTAL BILL:</span>
                   <span className="text-base">{formatBDT(receiptOrder.totalAmount)}</span>
+                </div>
+
+                <div className="text-center font-bold tracking-tight text-slate-950 select-none">
+                  ================================
+                </div>
+
+                {/* Due vs Paid indicator for Delivery Guy & Customer */}
+                <div className="py-1.5 text-center font-bold text-xs uppercase">
+                  {receiptOrder.paymentMethod === 'COD' ? (
+                    <div className="p-1.5 border-2 border-black tracking-wider">
+                      &gt;&gt;&gt; CASH TO COLLECT: {formatBDT(receiptOrder.totalAmount)} &lt;&lt;&lt;
+                    </div>
+                  ) : (
+                    <div className="p-1 border border-black text-[11px] tracking-wide">
+                      PAID IN ADVANCE VIA {receiptOrder.paymentMethod.toUpperCase()} (COLLECT: ৳0)
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-center font-bold tracking-tight text-slate-950 select-none">
@@ -3979,9 +4569,18 @@ git push -u origin main`}</pre>
                     {customerForm.paymentMethod !== 'COD' && (
                       <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-3 mt-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-rose-800">
-                            {customerForm.paymentMethod} Merchant Number:
-                          </span>
+                          <div>
+                            <span className="text-xs font-bold text-rose-800 block">
+                              {customerForm.paymentMethod} Number:
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-semibold">
+                              {customerForm.paymentMethod === 'bKash'
+                                ? storeConfig.bkashType || 'Personal (Send Money)'
+                                : customerForm.paymentMethod === 'Nagad'
+                                ? storeConfig.nagadType || 'Personal (Send Money)'
+                                : storeConfig.rocketType || 'Personal (Send Money)'}
+                            </span>
+                          </div>
                           <button
                             type="button"
                             onClick={() => {
@@ -3993,29 +4592,56 @@ git push -u origin main`}</pre>
                                   : storeConfig.rocketMerchant;
                               navigator.clipboard?.writeText(num);
                               setCopiedNumber(true);
+                              showToast(`Copied ${customerForm.paymentMethod} number: ${num}`);
                               setTimeout(() => setCopiedNumber(false), 2000);
                             }}
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white text-rose-700 text-xs font-extrabold border border-rose-200"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-rose-700 text-xs font-extrabold border border-rose-300 shadow-sm hover:bg-rose-100 transition-all"
                           >
                             {customerForm.paymentMethod === 'bKash'
                               ? storeConfig.bkashMerchant
                               : customerForm.paymentMethod === 'Nagad'
                               ? storeConfig.nagadMerchant
                               : storeConfig.rocketMerchant}
-                            {copiedNumber ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copiedNumber ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                           </button>
                         </div>
+
                         <p className="text-[11px] text-slate-600">
-                          Please Send Money / Payment of <strong>{formatBDT(grandTotal)}</strong> and enter your TrxID below:
+                          {customerForm.paymentMethod === 'bKash'
+                            ? storeConfig.bkashInstructions || `Please Send Money of ${formatBDT(grandTotal)} to the number above.`
+                            : customerForm.paymentMethod === 'Nagad'
+                            ? storeConfig.nagadInstructions || `Please Send Money of ${formatBDT(grandTotal)} to the number above.`
+                            : storeConfig.rocketInstructions || `Please Send Money of ${formatBDT(grandTotal)} to the number above.`}
                         </p>
-                        <input
-                          type="text"
-                          required
-                          value={customerForm.trxId}
-                          onChange={(e) => setCustomerForm({ ...customerForm, trxId: e.target.value })}
-                          placeholder={`Enter ${customerForm.paymentMethod} TrxID`}
-                          className="w-full px-3.5 py-2 rounded-xl bg-white border border-rose-300 text-xs font-mono uppercase font-bold"
-                        />
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                              Your {customerForm.paymentMethod} Number *
+                            </label>
+                            <input
+                              type="tel"
+                              required
+                              value={customerForm.senderNumber}
+                              onChange={(e) => setCustomerForm({ ...customerForm, senderNumber: e.target.value })}
+                              placeholder="01XXXXXXXXX"
+                              className="w-full px-3 py-2 rounded-xl bg-white border border-rose-300 text-xs font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                              Transaction ID (TrxID) *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={customerForm.trxId}
+                              onChange={(e) => setCustomerForm({ ...customerForm, trxId: e.target.value })}
+                              placeholder={`Enter ${customerForm.paymentMethod} TrxID`}
+                              className="w-full px-3 py-2 rounded-xl bg-white border border-rose-300 text-xs font-mono uppercase font-bold"
+                            />
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
