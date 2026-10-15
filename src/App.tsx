@@ -163,6 +163,15 @@ const LUXURY_BOTTLE_PRESETS = [
   }
 ];
 
+const OFFLINE_FALLBACK_IMAGE = "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=800&q=80";
+const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  const img = e.currentTarget;
+  if (!img.dataset.hasFailed) {
+    img.dataset.hasFailed = "true";
+    img.src = OFFLINE_FALLBACK_IMAGE;
+  }
+};
+
 const VOLUME_MULTIPLIERS: Record<string, number> = {
   "10ml Decant": 0.22,
   "30ml": 0.48,
@@ -527,12 +536,15 @@ function LuxuryAnimatedBackground({ mode = "silk-aurora" }: { mode: 'silk-aurora
     canvas.width = cssWidth * dpr;
     canvas.height = cssHeight * dpr;
 
+    let isMobile = cssWidth < 768;
+
     const handleResize = () => {
       if (!canvas) return;
       cssWidth = window.innerWidth;
       cssHeight = window.innerHeight;
-      canvas.width = cssWidth * dpr;
-      canvas.height = cssHeight * dpr;
+      isMobile = cssWidth < 768;
+      canvas.width = Math.max(cssWidth, 320) * dpr;
+      canvas.height = Math.max(cssHeight, 320) * dpr;
     };
     window.addEventListener('resize', handleResize, { passive: true });
 
@@ -563,8 +575,6 @@ function LuxuryAnimatedBackground({ mode = "silk-aurora" }: { mode: 'silk-aurora
     }
     const trailRipples: Ripple[] = [];
 
-    const isMobile = cssWidth < 768;
-
     const handleMouseMove = (e: MouseEvent) => {
       mouse.targetX = e.clientX;
       mouse.targetY = e.clientY;
@@ -580,7 +590,15 @@ function LuxuryAnimatedBackground({ mode = "silk-aurora" }: { mode: 'silk-aurora
       }
     };
 
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches && e.touches[0]) {
+        mouse.targetX = e.touches[0].clientX;
+        mouse.targetY = e.touches[0].clientY;
+      }
+    };
+
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
 
     const particleCount = isMobile
       ? (mode === 'rose-petals' ? 16 : 12)
@@ -730,6 +748,7 @@ function LuxuryAnimatedBackground({ mode = "silk-aurora" }: { mode: 'silk-aurora
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [mode]);
@@ -1011,37 +1030,55 @@ export default function App() {
 
       // Listen to store settings doc
       const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'storeConfig');
-      const unsubConfig = onSnapshot(configDocRef, (snap) => {
-        if (snap.exists()) {
-          const data = snap.data() as Partial<StoreConfig>;
-          setStoreConfig((prev) => ({ ...prev, ...data }));
-          setBannerForm((prev) => ({ ...prev, ...data }));
-          if (data.bgAnimationMode) setBgMode(data.bgAnimationMode);
-        } else {
-          setDoc(configDocRef, DEFAULT_STORE_CONFIG).catch(() => {});
+      const unsubConfig = onSnapshot(
+        configDocRef,
+        (snap) => {
+          if (snap.exists()) {
+            const data = snap.data() as Partial<StoreConfig>;
+            setStoreConfig((prev) => ({ ...prev, ...data }));
+            setBannerForm((prev) => ({ ...prev, ...data }));
+            if (data.bgAnimationMode) setBgMode(data.bgAnimationMode);
+          } else {
+            setDoc(configDocRef, DEFAULT_STORE_CONFIG).catch(() => {});
+          }
+        },
+        (error) => {
+          console.warn("Firestore config listener fallback to local state:", error);
         }
-      });
+      );
 
       // Listen to products
       const productsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'products');
-      const unsubProducts = onSnapshot(productsColRef, (snap) => {
-        if (!snap.empty) {
-          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as PerfumeProduct[];
-          setProducts(list);
-        } else {
-          INITIAL_PRODUCTS.forEach((p) => {
-            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', p.id), p).catch(() => {});
-          });
+      const unsubProducts = onSnapshot(
+        productsColRef,
+        (snap) => {
+          if (!snap.empty) {
+            const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as PerfumeProduct[];
+            setProducts(list);
+          } else {
+            INITIAL_PRODUCTS.forEach((p) => {
+              setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', p.id), p).catch(() => {});
+            });
+          }
+        },
+        (error) => {
+          console.warn("Firestore products listener fallback to local state:", error);
         }
-      });
+      );
 
       // Listen to orders
       const ordersColRef = collection(db, 'artifacts', appId, 'public', 'data', 'orders');
-      const unsubOrders = onSnapshot(ordersColRef, (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as OrderRecord[];
-        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        setOrders(list);
-      });
+      const unsubOrders = onSnapshot(
+        ordersColRef,
+        (snap) => {
+          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as OrderRecord[];
+          list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          setOrders(list);
+        },
+        (error) => {
+          console.warn("Firestore orders listener fallback to local state:", error);
+        }
+      );
 
       return () => {
         unsubscribeAuth();
@@ -1765,13 +1802,14 @@ export default function App() {
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* PWA Install Button (Android, Chrome, PC) */}
+            {/* PWA Install Button (Android, Chrome, PC, Mobile) */}
             {isInstallable && !isInstalled && (
               <button
                 onClick={installPWA}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all animate-bounce"
+                className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-bold shadow-sm transition-all shrink-0"
               >
-                <Plus className="w-3.5 h-3.5" /> Install App
+                <Plus className="w-3.5 h-3.5" />
+                <span>Install</span>
               </button>
             )}
 
@@ -1779,9 +1817,9 @@ export default function App() {
             {isIOS && !isInstalled && (
               <button
                 onClick={() => setShowIOSGuide(true)}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-bold border border-rose-200 transition-all"
+                className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-700 text-[11px] sm:text-xs font-bold border border-rose-200 transition-all shrink-0"
               >
-                Install on iOS
+                <span>Install on iOS</span>
               </button>
             )}
 
@@ -1899,6 +1937,9 @@ export default function App() {
                       <img
                         src={storeConfig.bannerImage}
                         alt={storeConfig.featuredBottleName}
+                        onError={handleImageError}
+                        loading="eager"
+                        decoding="async"
                         className="w-full h-full object-cover rounded-[1.5rem] animate-bottle transition-transform duration-700 group-hover:scale-105"
                       />
                       <div className="absolute bottom-6 left-6 right-6 glass-card p-4 rounded-2xl shadow-lg flex items-center justify-between">
@@ -2045,6 +2086,9 @@ export default function App() {
                         <img
                           src={product.image}
                           alt={product.name}
+                          onError={handleImageError}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-700"
                         />
 
@@ -3819,6 +3863,9 @@ git push -u origin main`}</pre>
                   <img
                     src={quickViewProduct.image}
                     alt={quickViewProduct.name}
+                    onError={handleImageError}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -4413,6 +4460,9 @@ COD Collection: ৳${receiptOrder.paymentMethod === 'COD' ? receiptOrder.totalAm
                           <img
                             src={item.image}
                             alt={item.name}
+                            onError={handleImageError}
+                            loading="lazy"
+                            decoding="async"
                             className="w-16 h-16 rounded-xl object-cover border border-rose-100 shrink-0"
                           />
                           <div className="flex-1 min-w-0">
