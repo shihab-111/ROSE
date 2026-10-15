@@ -30,7 +30,7 @@ import {
   Settings, Package, ShoppingCart, BarChart3, Edit3, Trash2, 
   Eye, Phone, CreditCard, ArrowRight, Star, Droplets, 
   Wind, Clock, AlertCircle, ChevronRight, Copy, Check,
-  Flame, Award, Gift, Wand2, Layers, RefreshCw
+  Flame, Award, Gift, Wand2, Layers, RefreshCw, Printer, Receipt
 } from 'lucide-react';
 
 // ==========================================
@@ -414,7 +414,88 @@ const formatBDT = (amount: number | string) => {
 };
 
 // ==========================================
-// 60FPS INTERACTIVE CANVAS BACKGROUND ENGINE
+// PWA INSTALLATION HOOK
+// ==========================================
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
+function usePWAInstall() {
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    setIsInstalled(isStandalone);
+
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(isIOSDevice);
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const install = async () => {
+    if (!deferredPrompt) return false;
+    await deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+      return true;
+    }
+    return false;
+  };
+
+  return { isInstallable: !!deferredPrompt, isInstalled, isIOS, install };
+}
+
+// ==========================================
+// NETWORK STATUS HOOK
+// ==========================================
+function useOnlineStatus() {
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  return isOnline;
+}
+
+// ==========================================
+// 60FPS LOW-POWER ADAPTIVE CANVAS BACKGROUND ENGINE
 // ==========================================
 function LuxuryAnimatedBackground({ mode = "silk-aurora" }: { mode: 'silk-aurora' | 'rose-petals' | 'crystal-mesh' }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -422,25 +503,42 @@ function LuxuryAnimatedBackground({ mode = "silk-aurora" }: { mode: 'silk-aurora
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
     let animationFrameId: number;
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    let isPageVisible = true;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    let cssWidth = window.innerWidth;
+    let cssHeight = window.innerHeight;
+    canvas.width = cssWidth * dpr;
+    canvas.height = cssHeight * dpr;
 
     const handleResize = () => {
       if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+      cssWidth = window.innerWidth;
+      cssHeight = window.innerHeight;
+      canvas.width = cssWidth * dpr;
+      canvas.height = cssHeight * dpr;
     };
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleResize, { passive: true });
+
+    const handleVisibility = () => {
+      isPageVisible = !document.hidden;
+      if (isPageVisible) {
+        animationFrameId = requestAnimationFrame(render);
+      } else {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     const mouse = {
-      x: width * 0.5,
-      y: height * 0.35,
-      targetX: width * 0.5,
-      targetY: height * 0.35,
+      x: cssWidth * 0.5,
+      y: cssHeight * 0.35,
+      targetX: cssWidth * 0.5,
+      targetY: cssHeight * 0.35,
     };
 
     interface Ripple {
@@ -453,16 +551,18 @@ function LuxuryAnimatedBackground({ mode = "silk-aurora" }: { mode: 'silk-aurora
     }
     const trailRipples: Ripple[] = [];
 
+    const isMobile = cssWidth < 768;
+
     const handleMouseMove = (e: MouseEvent) => {
       mouse.targetX = e.clientX;
       mouse.targetY = e.clientY;
-      if (trailRipples.length < 28 && Math.random() > 0.35) {
+      if (!isMobile && trailRipples.length < 20 && Math.random() > 0.4) {
         trailRipples.push({
           x: e.clientX + (Math.random() - 0.5) * 16,
           y: e.clientY + (Math.random() - 0.5) * 16,
           r: Math.random() * 4 + 2,
-          maxR: Math.random() * 34 + 18,
-          alpha: 0.55,
+          maxR: Math.random() * 28 + 14,
+          alpha: 0.5,
           hue: Math.random() > 0.4 ? 338 : 38
         });
       }
@@ -470,100 +570,100 @@ function LuxuryAnimatedBackground({ mode = "silk-aurora" }: { mode: 'silk-aurora
 
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
 
-    const particleCount = mode === 'rose-petals' ? 42 : 32;
+    const particleCount = isMobile
+      ? (mode === 'rose-petals' ? 16 : 12)
+      : (mode === 'rose-petals' ? 36 : 24);
+
     const particles = Array.from({ length: particleCount }, (_, i) => ({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      size: mode === 'rose-petals' ? Math.random() * 9 + 5 : Math.random() * 5 + 2,
-      speedY: -(Math.random() * 0.45 + 0.18),
-      speedX: (Math.random() - 0.5) * 0.35,
+      x: Math.random() * cssWidth,
+      y: Math.random() * cssHeight,
+      size: mode === 'rose-petals' ? Math.random() * 8 + 4 : Math.random() * 4 + 2,
+      speedY: -(Math.random() * 0.4 + 0.16),
+      speedX: (Math.random() - 0.5) * 0.3,
       angle: Math.random() * Math.PI * 2,
-      spin: (Math.random() - 0.5) * 0.018,
-      alpha: Math.random() * 0.45 + 0.2,
-      isPetal: mode === 'rose-petals' ? i % 2 === 0 : i % 5 === 0,
+      spin: (Math.random() - 0.5) * 0.015,
+      alpha: Math.random() * 0.4 + 0.2,
+      isPetal: mode === 'rose-petals' ? i % 2 === 0 : i % 4 === 0,
       colorType: i % 3
     }));
 
     let tick = 0;
 
     const render = () => {
+      if (!isPageVisible) return;
+
       tick += 0.012;
       mouse.x += (mouse.targetX - mouse.x) * 0.06;
       mouse.y += (mouse.targetY - mouse.y) * 0.06;
 
-      ctx.clearRect(0, 0, width, height);
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-      // Cursor aura glow
+      // 1. Subtle interactive aura glow
       const cursorGrad = ctx.createRadialGradient(
         mouse.x,
         mouse.y,
         10,
         mouse.x,
         mouse.y,
-        Math.min(width, height) * 0.42
+        Math.min(cssWidth, cssHeight) * 0.42
       );
-      cursorGrad.addColorStop(0, 'rgba(244, 114, 182, 0.13)');
-      cursorGrad.addColorStop(0.45, 'rgba(251, 207, 232, 0.08)');
+      cursorGrad.addColorStop(0, 'rgba(244, 114, 182, 0.12)');
+      cursorGrad.addColorStop(0.5, 'rgba(251, 207, 232, 0.06)');
       cursorGrad.addColorStop(1, 'rgba(255, 248, 250, 0)');
       ctx.fillStyle = cursorGrad;
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillRect(0, 0, cssWidth, cssHeight);
 
-      // Flowing silk ribbon waves
-      const waveCount = mode === 'crystal-mesh' ? 4 : 3;
+      // 2. Liquid silk ribbon waves (adaptive step for 60fps on phones)
+      const waveCount = mode === 'crystal-mesh' ? 3 : 2;
       const wavePalettes = [
-        { stroke: 'rgba(244, 114, 182, 0.18)', fill: 'rgba(251, 207, 232, 0.14)' },
-        { stroke: 'rgba(251, 146, 60, 0.12)', fill: 'rgba(254, 240, 138, 0.10)' },
-        { stroke: 'rgba(236, 72, 153, 0.14)', fill: 'rgba(249, 168, 212, 0.12)' },
-        { stroke: 'rgba(192, 132, 252, 0.14)', fill: 'rgba(233, 213, 255, 0.11)' }
+        { stroke: 'rgba(244, 114, 182, 0.16)', fill: 'rgba(251, 207, 232, 0.12)' },
+        { stroke: 'rgba(251, 146, 60, 0.10)', fill: 'rgba(254, 240, 138, 0.08)' },
+        { stroke: 'rgba(236, 72, 153, 0.12)', fill: 'rgba(249, 168, 212, 0.10)' },
       ];
+
+      const xStep = isMobile ? 48 : 28;
 
       for (let w = 0; w < waveCount; w++) {
         const palette = wavePalettes[w % wavePalettes.length];
         ctx.beginPath();
-        const baseY = height * (0.28 + w * 0.21);
-        ctx.moveTo(0, height);
+        const baseY = cssHeight * (0.32 + w * 0.24);
+        ctx.moveTo(0, cssHeight);
 
-        for (let x = 0; x <= width; x += 28) {
+        for (let x = 0; x <= cssWidth; x += xStep) {
           const distFromMouse = Math.abs(x - mouse.x);
-          const mousePull = Math.max(0, 1 - distFromMouse / 420) * ((mouse.y - height * 0.5) * 0.08);
+          const mousePull = Math.max(0, 1 - distFromMouse / 380) * ((mouse.y - cssHeight * 0.5) * 0.07);
           const y =
             baseY +
-            Math.sin(x * 0.0025 + tick * (1.1 + w * 0.25) + w) * (42 + w * 12) +
-            Math.cos(x * 0.0055 - tick * 0.8 + w * 2) * 24 +
+            Math.sin(x * 0.0025 + tick * (1.0 + w * 0.25) + w) * (36 + w * 10) +
+            Math.cos(x * 0.005 - tick * 0.7 + w * 2) * 20 +
             mousePull;
           ctx.lineTo(x, y);
         }
 
-        ctx.lineTo(width, height);
+        ctx.lineTo(cssWidth, cssHeight);
         ctx.closePath();
         ctx.fillStyle = palette.fill;
         ctx.fill();
 
-        ctx.lineWidth = 1.4;
+        ctx.lineWidth = 1.2;
         ctx.strokeStyle = palette.stroke;
         ctx.stroke();
       }
 
-      // Render floating scent molecules & rose petals
+      // 3. Floating scent particles & rose petals
       particles.forEach((p) => {
         p.y += p.speedY;
-        p.x += p.speedX + Math.sin(tick + p.angle) * 0.22;
+        p.x += p.speedX + Math.sin(tick + p.angle) * 0.2;
         p.angle += p.spin;
 
-        const dx = p.x - mouse.x;
-        const dy = p.y - mouse.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 140 && dist > 1) {
-          p.x += (dx / dist) * 0.65;
-          p.y += (dy / dist) * 0.65;
+        if (p.y < -25) {
+          p.y = cssHeight + 20;
+          p.x = Math.random() * cssWidth;
         }
-
-        if (p.y < -30) {
-          p.y = height + 25;
-          p.x = Math.random() * width;
-        }
-        if (p.x < -30) p.x = width + 25;
-        if (p.x > width + 30) p.x = -25;
+        if (p.x < -25) p.x = cssWidth + 20;
+        if (p.x > cssWidth + 25) p.x = -20;
 
         ctx.save();
         ctx.translate(p.x, p.y);
@@ -572,79 +672,58 @@ function LuxuryAnimatedBackground({ mode = "silk-aurora" }: { mode: 'silk-aurora
         if (p.isPetal) {
           ctx.beginPath();
           ctx.moveTo(0, -p.size);
-          ctx.bezierCurveTo(
-            p.size * 1.15,
-            -p.size * 0.8,
-            p.size * 1.25,
-            p.size * 0.7,
-            0,
-            p.size
-          );
-          ctx.bezierCurveTo(
-            -p.size * 1.25,
-            p.size * 0.7,
-            -p.size * 1.15,
-            -p.size * 0.8,
-            0,
-            -p.size
-          );
+          ctx.bezierCurveTo(p.size * 1.1, -p.size * 0.8, p.size * 1.2, p.size * 0.7, 0, p.size);
+          ctx.bezierCurveTo(-p.size * 1.2, p.size * 0.7, -p.size * 1.1, -p.size * 0.8, 0, -p.size);
           ctx.closePath();
           ctx.fillStyle =
             p.colorType === 0
-              ? `rgba(244, 114, 182, ${p.alpha * 0.85})`
-              : p.colorType === 1
-              ? `rgba(251, 207, 232, ${p.alpha})`
-              : `rgba(253, 164, 175, ${p.alpha * 0.9})`;
+              ? `rgba(244, 114, 182, ${p.alpha * 0.8})`
+              : `rgba(253, 164, 175, ${p.alpha * 0.85})`;
           ctx.fill();
         } else {
-          const orbGrad = ctx.createRadialGradient(0, 0, 0.5, 0, 0, p.size * 2.2);
-          if (p.colorType === 1) {
-            orbGrad.addColorStop(0, `rgba(253, 224, 71, ${p.alpha})`);
-            orbGrad.addColorStop(1, 'rgba(253, 224, 71, 0)');
-          } else {
-            orbGrad.addColorStop(0, `rgba(244, 114, 182, ${p.alpha})`);
-            orbGrad.addColorStop(1, 'rgba(244, 114, 182, 0)');
-          }
-          ctx.fillStyle = orbGrad;
           ctx.beginPath();
-          ctx.arc(0, 0, p.size * 2.2, 0, Math.PI * 2);
+          ctx.arc(0, 0, p.size * 1.6, 0, Math.PI * 2);
+          ctx.fillStyle =
+            p.colorType === 1
+              ? `rgba(253, 224, 71, ${p.alpha * 0.6})`
+              : `rgba(244, 114, 182, ${p.alpha * 0.6})`;
           ctx.fill();
         }
         ctx.restore();
       });
 
-      // Cursor scent mist ripples
+      // 4. Cursor scent ripples (desktops)
       for (let i = trailRipples.length - 1; i >= 0; i--) {
         const rip = trailRipples[i];
         rip.r += (rip.maxR - rip.r) * 0.08;
         rip.alpha *= 0.93;
-        rip.y -= 0.45;
+        rip.y -= 0.4;
 
         ctx.beginPath();
         ctx.arc(rip.x, rip.y, rip.r, 0, Math.PI * 2);
         ctx.strokeStyle = `hsla(${rip.hue}, 88%, 72%, ${rip.alpha})`;
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 1.0;
         ctx.stroke();
 
-        if (rip.alpha < 0.03) {
-          trailRipples.splice(i, 1);
-        }
+        if (rip.alpha < 0.03) trailRipples.splice(i, 1);
       }
 
+      ctx.restore();
       animationFrameId = requestAnimationFrame(render);
     };
 
-    render();
+    animationFrameId = requestAnimationFrame(render);
 
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [mode]);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-[#FFF8FA]">
+    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-[#FFF8FA] will-change-transform">
       <div
         className="absolute inset-0 opacity-90 transition-all duration-1000"
         style={{
@@ -656,17 +735,17 @@ function LuxuryAnimatedBackground({ mode = "silk-aurora" }: { mode: 'silk-aurora
               : 'radial-gradient(circle at 12% 18%, #FCE7F3 0%, transparent 48%), radial-gradient(circle at 88% 22%, #FFEDD5 0%, transparent 42%), radial-gradient(circle at 52% 85%, #FBCFE8 0%, #FFF8FA 72%)'
         }}
       />
-      <div className="absolute -top-28 -left-24 w-[36rem] h-[36rem] bg-gradient-to-br from-pink-300/40 via-rose-200/35 to-amber-100/30 blur-3xl animate-liquid-blob-1 mix-blend-multiply" />
-      <div className="absolute top-1/4 -right-28 w-[40rem] h-[40rem] bg-gradient-to-bl from-rose-300/35 via-fuchsia-200/30 to-pink-100/35 blur-3xl animate-liquid-blob-2 mix-blend-multiply" />
-      <div className="absolute -bottom-32 left-1/4 w-[38rem] h-[38rem] bg-gradient-to-tr from-pink-200/40 via-rose-100/35 to-amber-200/25 blur-3xl animate-liquid-blob-3 mix-blend-multiply" />
+      <div className="absolute -top-28 -left-24 w-[32rem] sm:w-[36rem] h-[32rem] sm:h-[36rem] bg-gradient-to-br from-pink-300/35 via-rose-200/30 to-amber-100/25 blur-3xl animate-liquid-blob-1 mix-blend-multiply" />
+      <div className="absolute top-1/4 -right-28 w-[34rem] sm:w-[40rem] h-[34rem] sm:h-[40rem] bg-gradient-to-bl from-rose-300/30 via-fuchsia-200/25 to-pink-100/30 blur-3xl animate-liquid-blob-2 mix-blend-multiply" />
+      <div className="absolute -bottom-32 left-1/4 w-[32rem] sm:w-[38rem] h-[32rem] sm:h-[38rem] bg-gradient-to-tr from-pink-200/35 via-rose-100/30 to-amber-200/20 blur-3xl animate-liquid-blob-3 mix-blend-multiply" />
 
-      <div className="absolute inset-0 overflow-hidden opacity-50">
-        <div className="absolute -top-1/2 left-1/4 w-44 h-[200%] bg-gradient-to-r from-transparent via-white/70 to-transparent rotate-[32deg] blur-2xl animate-prism-beam-1" />
-        <div className="absolute -top-1/2 left-2/3 w-64 h-[200%] bg-gradient-to-r from-transparent via-rose-100/60 to-transparent rotate-[32deg] blur-3xl animate-prism-beam-2" />
+      <div className="absolute inset-0 overflow-hidden opacity-40">
+        <div className="absolute -top-1/2 left-1/4 w-36 sm:w-44 h-[200%] bg-gradient-to-r from-transparent via-white/60 to-transparent rotate-[32deg] blur-2xl animate-prism-beam-1" />
+        <div className="absolute -top-1/2 left-2/3 w-48 sm:w-64 h-[200%] bg-gradient-to-r from-transparent via-rose-100/50 to-transparent rotate-[32deg] blur-3xl animate-prism-beam-2" />
       </div>
 
       <div
-        className="absolute inset-0 opacity-[0.16]"
+        className="absolute inset-0 opacity-[0.14]"
         style={{
           backgroundImage:
             'radial-gradient(rgba(244, 114, 182, 0.4) 0.75px, transparent 0.75px)',
@@ -772,6 +851,11 @@ export default function App() {
   const [lastPlacedOrder, setLastPlacedOrder] = useState<OrderRecord | null>(null);
   const [copiedNumber, setCopiedNumber] = useState(false);
 
+  // PWA Installation & Device Connectivity
+  const { isInstallable, isInstalled, isIOS, install: installPWA } = usePWAInstall();
+  const isOnline = useOnlineStatus();
+  const [showIOSGuide, setShowIOSGuide] = useState(false);
+
   // Order Tracking
   const [trackQuery, setTrackQuery] = useState('');
 
@@ -780,6 +864,12 @@ export default function App() {
   const [adminPinInput, setAdminPinInput] = useState('');
   const [adminPinError, setAdminPinError] = useState('');
   const [adminTab, setAdminTab] = useState<'dashboard' | 'products' | 'banner' | 'orders' | 'github'>('dashboard');
+
+  // Thermal Receipt Printing & Orders Filter State
+  const [receiptOrder, setReceiptOrder] = useState<OrderRecord | null>(null);
+  const [receiptPaperWidth, setReceiptPaperWidth] = useState<'80mm' | '58mm'>('80mm');
+  const [adminOrderSearch, setAdminOrderSearch] = useState('');
+  const [adminOrderFilter, setAdminOrderFilter] = useState<'All' | 'Pending' | 'Confirmed' | 'Shipped' | 'Delivered' | 'Cancelled'>('All');
 
   // Admin Forms
   const [bannerForm, setBannerForm] = useState<StoreConfig>(DEFAULT_STORE_CONFIG);
@@ -1512,40 +1602,48 @@ export default function App() {
         </div>
       )}
 
+      {/* Offline Alert Bar */}
+      {!isOnline && (
+        <div className="relative z-40 bg-amber-600 text-white text-xs py-2 px-4 text-center font-bold flex items-center justify-center gap-2 shadow-sm">
+          <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse shrink-0" />
+          <span>Offline Mode — You are browsing cached fragrances and your bag is safely saved.</span>
+        </div>
+      )}
+
       {/* Top Announcement Bar */}
-      <div className="relative z-30 bg-gradient-to-r from-rose-700 via-pink-600 to-rose-700 text-white text-xs sm:text-sm py-2.5 px-4 text-center font-medium tracking-wide shadow-sm">
+      <div className="relative z-30 bg-gradient-to-r from-rose-700 via-pink-600 to-rose-700 text-white text-xs sm:text-sm py-2 px-3 sm:px-4 text-center font-medium tracking-wide shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 flex-wrap">
-          <span>{storeConfig.announcementText}</span>
+          <span className="truncate max-w-[90vw]">{storeConfig.announcementText}</span>
           <span className="hidden md:inline-block text-rose-200">|</span>
           <span className="hidden md:inline-flex items-center gap-1 text-rose-100 text-xs">
-            <Truck className="w-3.5 h-3.5" /> Steadfast & Pathao Express Delivery Across 64 Districts
+            <Truck className="w-3.5 h-3.5 shrink-0" /> Steadfast & Pathao Express Across 64 Districts
           </span>
         </div>
       </div>
 
-      {/* Sticky Header */}
+      {/* Sticky Header with PWA Install Support */}
       <header className="sticky top-0 z-30 glass-nav transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-18 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
           <button
             onClick={() => setActiveView('storefront')}
-            className="text-left group focus:outline-none"
+            className="text-left group focus:outline-none shrink-0"
           >
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-white shadow-md shadow-rose-300/50 group-hover:scale-105 transition-transform">
-                <Sparkles className="w-5 h-5" />
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-white shadow-md shadow-rose-300/50 group-hover:scale-105 transition-transform shrink-0">
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <span className="font-serif-luxury text-2xl sm:text-3xl font-bold tracking-wider bg-gradient-to-r from-rose-900 via-rose-700 to-pink-600 bg-clip-text text-transparent block leading-none">
+                <span className="font-serif-luxury text-xl sm:text-3xl font-bold tracking-wider bg-gradient-to-r from-rose-900 via-rose-700 to-pink-600 bg-clip-text text-transparent block leading-none">
                   {storeConfig.storeName}
                 </span>
-                <span className="text-[10px] tracking-[0.25em] text-rose-500 font-semibold uppercase block mt-0.5">
+                <span className="text-[9px] sm:text-[10px] tracking-[0.2em] sm:tracking-[0.25em] text-rose-500 font-semibold uppercase block mt-0.5">
                   {storeConfig.tagline}
                 </span>
               </div>
             </div>
           </button>
 
-          <nav className="hidden md:flex items-center gap-1 bg-rose-50/80 p-1.5 rounded-full border border-rose-200/60">
+          <nav className="hidden lg:flex items-center gap-1 bg-rose-50/80 p-1.5 rounded-full border border-rose-200/60">
             <button
               onClick={() => setActiveView('storefront')}
               className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
@@ -1587,21 +1685,41 @@ export default function App() {
             </button>
           </nav>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* PWA Install Button (Android, Chrome, PC) */}
+            {isInstallable && !isInstalled && (
+              <button
+                onClick={installPWA}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all animate-bounce"
+              >
+                <Plus className="w-3.5 h-3.5" /> Install App
+              </button>
+            )}
+
+            {/* iOS Safari Guide Button */}
+            {isIOS && !isInstalled && (
+              <button
+                onClick={() => setShowIOSGuide(true)}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-bold border border-rose-200 transition-all"
+              >
+                Install on iOS
+              </button>
+            )}
+
             <button
               onClick={() => setActiveView(activeView === 'admin' ? 'storefront' : 'admin')}
-              className="md:hidden px-3 py-2 rounded-xl bg-rose-100/80 text-rose-700 text-xs font-semibold flex items-center gap-1 border border-rose-200"
+              className="lg:hidden p-2 rounded-xl bg-rose-100/80 text-rose-700 text-xs font-semibold flex items-center gap-1 border border-rose-200"
+              title="Admin Portal"
             >
-              <Settings className="w-3.5 h-3.5" />
-              {activeView === 'admin' ? 'Store' : 'Admin'}
+              <Settings className="w-4 h-4" />
             </button>
 
             <button
               onClick={() => setActiveView('track-order')}
               title="Track Order"
-              className="p-2.5 rounded-full bg-white/80 hover:bg-rose-50 text-slate-700 hover:text-rose-600 border border-rose-100 shadow-sm transition-all"
+              className="p-2 sm:p-2.5 rounded-full bg-white/80 hover:bg-rose-50 text-slate-700 hover:text-rose-600 border border-rose-100 shadow-sm transition-all"
             >
-              <Truck className="w-5 h-5" />
+              <Truck className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
 
             <button
@@ -1609,11 +1727,11 @@ export default function App() {
                 setCheckoutStep('cart');
                 setIsCartOpen(true);
               }}
-              className="relative flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-gradient-to-r from-rose-600 to-pink-600 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-rose-300/50 hover:shadow-rose-400/60 hover:scale-[1.02] transition-all"
+              className="relative flex items-center gap-1.5 sm:gap-2.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-rose-600 to-pink-600 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-rose-300/50 hover:shadow-rose-400/60 hover:scale-[1.02] transition-all"
             >
-              <ShoppingBag className="w-4 h-4" />
-              <span className="hidden sm:inline">Luxury Bag</span>
-              <span className="px-2 py-0.5 rounded-full bg-white text-rose-700 text-xs font-bold">
+              <ShoppingBag className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Bag</span>
+              <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-white text-rose-700 text-xs font-bold leading-none">
                 {cart.reduce((s, i) => s + i.quantity, 0)}
               </span>
             </button>
@@ -2734,13 +2852,45 @@ export default function App() {
               {/* TAB 4: ORDERS */}
               {adminTab === 'orders' && (
                 <div className="glass-card rounded-3xl p-6 space-y-6">
-                  <div>
-                    <h2 className="font-serif-luxury text-3xl font-bold text-slate-900">
-                      Customer Orders & bKash / Nagad Verification
-                    </h2>
-                    <p className="text-xs text-slate-500">
-                      Verify mobile banking Transaction IDs (TrxID) and manage Steadfast/Pathao shipment pipeline.
-                    </p>
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h2 className="font-serif-luxury text-3xl font-bold text-slate-900">
+                        Customer Orders & Thermal Receipt POS
+                      </h2>
+                      <p className="text-xs text-slate-500">
+                        Verify bKash/Nagad transactions, dispatch couriers, and generate printable 80mm/58mm thermal receipts.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Search & Status Filter Controls */}
+                  <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pb-1">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={adminOrderSearch}
+                        onChange={(e) => setAdminOrderSearch(e.target.value)}
+                        placeholder="Search Order ID, Customer, Phone, or TrxID..."
+                        className="w-full pl-9 pr-4 py-2 rounded-xl bg-white border border-rose-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                      {(['All', 'Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'] as const).map((st) => (
+                        <button
+                          key={st}
+                          onClick={() => setAdminOrderFilter(st)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                            adminOrderFilter === st
+                              ? 'bg-rose-600 text-white shadow-sm'
+                              : 'bg-white text-slate-600 border border-rose-200 hover:bg-rose-50'
+                          }`}
+                        >
+                          {st}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {orders.length === 0 ? (
@@ -2749,71 +2899,95 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {orders.map((order) => (
-                        <div
-                          key={order.orderNumber}
-                          className="p-5 rounded-2xl bg-white/90 border border-rose-200 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4"
-                        >
-                          <div className="space-y-1.5">
-                            <div className="flex flex-wrap items-center gap-2.5">
-                              <span className="px-3 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold">
-                                {order.orderNumber}
-                              </span>
-                              <span className="font-bold text-slate-900 text-sm">
-                                {order.customerName}
-                              </span>
-                              <span className="text-xs font-semibold text-rose-600">
-                                📞 {order.phone}
-                              </span>
-                              <span className="text-xs text-slate-400">
-                                • {order.createdDateStr}
-                              </span>
+                      {orders
+                        .filter((order) => {
+                          if (adminOrderFilter !== 'All' && order.status !== adminOrderFilter) return false;
+                          if (adminOrderSearch.trim()) {
+                            const q = adminOrderSearch.toLowerCase();
+                            const matchNo = order.orderNumber?.toLowerCase().includes(q);
+                            const matchName = order.customerName?.toLowerCase().includes(q);
+                            const matchPhone = order.phone?.includes(q);
+                            const matchTrx = order.trxId?.toLowerCase().includes(q);
+                            if (!matchNo && !matchName && !matchPhone && !matchTrx) return false;
+                          }
+                          return true;
+                        })
+                        .map((order) => (
+                          <div
+                            key={order.orderNumber}
+                            className="p-5 rounded-2xl bg-white/90 border border-rose-200 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4"
+                          >
+                            <div className="space-y-1.5 flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2.5">
+                                <span className="px-3 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold">
+                                  {order.orderNumber}
+                                </span>
+                                <span className="font-bold text-slate-900 text-sm">
+                                  {order.customerName}
+                                </span>
+                                <span className="text-xs font-semibold text-rose-600">
+                                  📞 {order.phone}
+                                </span>
+                                <span className="text-xs text-slate-400">
+                                  • {order.createdDateStr}
+                                </span>
+                              </div>
+
+                              <div className="text-xs text-slate-600">
+                                <strong>Delivery Address:</strong> {order.address}, {order.district} ({order.courier})
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-3 pt-1">
+                                <span className="px-2.5 py-1 rounded-md bg-pink-50 border border-pink-200 text-rose-800 text-xs font-bold">
+                                  Payment: {order.paymentMethod}
+                                </span>
+                                <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 text-xs font-mono font-bold">
+                                  TrxID: {order.trxId}
+                                </span>
+                                <span className="text-xs text-slate-600">
+                                  Items:{' '}
+                                  {(order.items || [])
+                                    .map((i) => `${i.name} (${i.volume}) x${i.quantity}`)
+                                    .join(', ')}
+                                </span>
+                              </div>
                             </div>
 
-                            <div className="text-xs text-slate-600">
-                              <strong>Delivery Address:</strong> {order.address}, {order.district} ({order.courier})
-                            </div>
+                            <div className="flex flex-wrap items-center gap-3 self-end lg:self-center shrink-0">
+                              <div className="text-right mr-1">
+                                <span className="text-[11px] text-slate-400 block">Grand Total</span>
+                                <span className="text-lg font-extrabold text-rose-600">
+                                  {formatBDT(order.totalAmount)}
+                                </span>
+                              </div>
 
-                            <div className="flex flex-wrap items-center gap-3 pt-1">
-                              <span className="px-2.5 py-1 rounded-md bg-pink-50 border border-pink-200 text-rose-800 text-xs font-bold">
-                                Payment: {order.paymentMethod}
-                              </span>
-                              <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 text-xs font-mono font-bold">
-                                TrxID: {order.trxId}
-                              </span>
-                              <span className="text-xs text-slate-600">
-                                Items:{' '}
-                                {(order.items || [])
-                                  .map((i) => `${i.name} (${i.volume}) x${i.quantity}`)
-                                  .join(', ')}
-                              </span>
+                              {/* Thermal Print Trigger Button */}
+                              <button
+                                type="button"
+                                onClick={() => setReceiptOrder(order)}
+                                className="px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold flex items-center gap-1.5 shadow-sm hover:scale-105 transition-all"
+                                title="Print Thermal POS Receipt"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-rose-300" />
+                                <span>Thermal Receipt</span>
+                              </button>
+
+                              <select
+                                value={order.status}
+                                onChange={(e) =>
+                                  handleUpdateOrderStatus(order.orderNumber, e.target.value as OrderRecord['status'])
+                                }
+                                className="px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                              >
+                                <option value="Pending">Pending Verification</option>
+                                <option value="Confirmed">Confirmed & Packed</option>
+                                <option value="Shipped">Handed to Courier</option>
+                                <option value="Delivered">Delivered</option>
+                                <option value="Cancelled">Cancelled</option>
+                              </select>
                             </div>
                           </div>
-
-                          <div className="flex flex-wrap items-center gap-3 self-end lg:self-center">
-                            <div className="text-right mr-2">
-                              <span className="text-[11px] text-slate-400 block">Grand Total</span>
-                              <span className="text-lg font-extrabold text-rose-600">
-                                {formatBDT(order.totalAmount)}
-                              </span>
-                            </div>
-
-                            <select
-                              value={order.status}
-                              onChange={(e) =>
-                                handleUpdateOrderStatus(order.orderNumber, e.target.value as OrderRecord['status'])
-                              }
-                              className="px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                            >
-                              <option value="Pending">Pending Verification</option>
-                              <option value="Confirmed">Confirmed & Packed</option>
-                              <option value="Shipped">Handed to Courier</option>
-                              <option value="Delivered">Delivered</option>
-                              <option value="Cancelled">Cancelled</option>
-                            </select>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   )}
                 </div>
@@ -3327,6 +3501,275 @@ git push -u origin main`}</pre>
         </div>
       )}
 
+      {/* ==========================================
+          MODAL 4: THERMAL POS RECEIPT MODAL (80mm / 58mm)
+      ========================================== */}
+      {receiptOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-slate-200/90 rounded-[2rem] max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-300 relative my-6 max-h-[94vh] flex flex-col overflow-hidden">
+            {/* Modal Controls Bar (Hidden during print) */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-300 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+                  <Printer className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="font-serif-luxury text-xl font-bold text-slate-900 leading-none">
+                    Thermal POS Receipt
+                  </h3>
+                  <span className="text-[10px] text-slate-600 font-mono">
+                    Order #{receiptOrder.orderNumber}
+                  </span>
+                </div>
+              </div>
+
+              {/* Width Switcher & Action Buttons */}
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-lg bg-slate-300 p-0.5 text-[11px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setReceiptPaperWidth('80mm')}
+                    className={`px-2.5 py-1 rounded-md transition-all ${
+                      receiptPaperWidth === '80mm'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-700 hover:text-black'
+                    }`}
+                  >
+                    80mm
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReceiptPaperWidth('58mm')}
+                    className={`px-2.5 py-1 rounded-md transition-all ${
+                      receiptPaperWidth === '58mm'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-700 hover:text-black'
+                    }`}
+                  >
+                    58mm
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-slate-400/50 hover:scale-105 transition-all"
+                  title="Print to POS Thermal Printer"
+                >
+                  <Printer className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Print Receipt</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setReceiptOrder(null)}
+                  className="p-2 rounded-xl bg-slate-300 hover:bg-slate-400 text-slate-800 transition-all"
+                  title="Close Preview"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Receipt Preview Body */}
+            <div className="flex-1 overflow-y-auto py-2 flex justify-center">
+              {/* PRINTABLE RECEIPT ELEMENT (targeted by @media print) */}
+              <div
+                id="thermal-receipt-print"
+                className={`bg-white text-slate-950 font-mono shadow-lg border border-slate-300 p-5 rounded-sm transition-all leading-relaxed ${
+                  receiptPaperWidth === '58mm' ? 'w-[280px] text-[10px]' : 'w-[350px] text-xs'
+                }`}
+              >
+                {/* Store Header */}
+                <div className="text-center space-y-0.5 pb-2">
+                  <div className="text-sm font-black tracking-widest uppercase">
+                    *** {storeConfig.storeName} ***
+                  </div>
+                  <div className="text-[10px] tracking-wider text-slate-700 font-semibold">
+                    {storeConfig.tagline}
+                  </div>
+                  <div className="text-[10px] text-slate-600">
+                    Flagship: Road 11, Banani, Dhaka-1213
+                  </div>
+                  <div className="text-[10px] text-slate-600">
+                    Hotline: {storeConfig.bkashMerchant} • www.eclatderose.com
+                  </div>
+                </div>
+
+                <div className="text-center font-bold tracking-tight text-slate-400 select-none">
+                  ================================
+                </div>
+
+                {/* Receipt Metadata */}
+                <div className="space-y-0.5 py-1 text-[11px]">
+                  <div className="flex justify-between">
+                    <span className="font-bold">INVOICE NO:</span>
+                    <span className="font-extrabold">{receiptOrder.orderNumber}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">DATE/TIME :</span>
+                    <span>{receiptOrder.createdDateStr}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">STATUS    :</span>
+                    <span className="font-bold uppercase underline">{receiptOrder.status}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">COURIER   :</span>
+                    <span>{receiptOrder.courier}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">PAYMENT   :</span>
+                    <span className="font-bold">{receiptOrder.paymentMethod}</span>
+                  </div>
+                  {receiptOrder.paymentMethod !== 'COD' && (
+                    <div className="flex justify-between text-[10px]">
+                      <span className="font-bold">TRX ID    :</span>
+                      <span className="font-mono font-bold">{receiptOrder.trxId}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-center font-bold tracking-tight text-slate-400 select-none">
+                  --------------------------------
+                </div>
+
+                {/* Customer Details */}
+                <div className="space-y-0.5 py-1 text-[11px]">
+                  <div className="font-bold uppercase text-[10px] text-slate-600">
+                    BILL & DELIVER TO:
+                  </div>
+                  <div className="font-extrabold text-slate-900">
+                    {receiptOrder.customerName}
+                  </div>
+                  <div>Phone: <strong>{receiptOrder.phone}</strong></div>
+                  <div>Dest : {receiptOrder.district}</div>
+                  <div className="text-[10px] leading-tight text-slate-800">
+                    Addr : {receiptOrder.address}
+                  </div>
+                </div>
+
+                <div className="text-center font-bold tracking-tight text-slate-400 select-none">
+                  --------------------------------
+                </div>
+
+                {/* Itemized Table */}
+                <div className="py-1">
+                  <div className="flex justify-between font-bold text-[10px] uppercase border-b border-dashed border-slate-300 pb-1 mb-1.5">
+                    <span>ITEM / VOL</span>
+                    <span className="text-right">QTY x PRICE   TOTAL</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(receiptOrder.items || []).map((item, idx) => (
+                      <div key={idx} className="space-y-0.5">
+                        <div className="font-bold text-[11px] leading-tight">
+                          {item.name}
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-700">
+                          <span>Vol: {item.volume}</span>
+                          <span className="font-mono">
+                            {item.quantity} x {formatBDT(item.price)} = {formatBDT(item.price * item.quantity)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="text-center font-bold tracking-tight text-slate-400 select-none">
+                  --------------------------------
+                </div>
+
+                {/* Accounting Totals */}
+                <div className="space-y-1 py-1 text-[11px]">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>{formatBDT(receiptOrder.subtotal)}</span>
+                  </div>
+                  {receiptOrder.discount > 0 && (
+                    <div className="flex justify-between font-semibold">
+                      <span>Promo Discount:</span>
+                      <span>-{formatBDT(receiptOrder.discount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span>Delivery Charge ({receiptOrder.deliveryZone === 'inside' ? 'Dhaka' : 'Suburbs/Out'}):</span>
+                    <span>{receiptOrder.shippingFee === 0 ? 'FREE' : formatBDT(receiptOrder.shippingFee)}</span>
+                  </div>
+                </div>
+
+                <div className="text-center font-bold tracking-tight text-slate-950 select-none">
+                  ================================
+                </div>
+
+                {/* Grand Total */}
+                <div className="flex justify-between items-baseline py-1 text-sm font-black text-slate-950">
+                  <span className="tracking-wider">TOTAL BILL:</span>
+                  <span className="text-base">{formatBDT(receiptOrder.totalAmount)}</span>
+                </div>
+
+                <div className="text-center font-bold tracking-tight text-slate-950 select-none">
+                  ================================
+                </div>
+
+                {/* Visual Barcode Simulation */}
+                <div className="my-2.5 flex flex-col items-center">
+                  <svg className="w-48 h-8 opacity-90" viewBox="0 0 160 30" preserveAspectRatio="none">
+                    <rect x="0" y="0" width="3" height="30" fill="black" />
+                    <rect x="5" y="0" width="1" height="30" fill="black" />
+                    <rect x="8" y="0" width="4" height="30" fill="black" />
+                    <rect x="15" y="0" width="2" height="30" fill="black" />
+                    <rect x="19" y="0" width="5" height="30" fill="black" />
+                    <rect x="27" y="0" width="2" height="30" fill="black" />
+                    <rect x="31" y="0" width="1" height="30" fill="black" />
+                    <rect x="34" y="0" width="3" height="30" fill="black" />
+                    <rect x="40" y="0" width="4" height="30" fill="black" />
+                    <rect x="46" y="0" width="2" height="30" fill="black" />
+                    <rect x="51" y="0" width="5" height="30" fill="black" />
+                    <rect x="58" y="0" width="1" height="30" fill="black" />
+                    <rect x="62" y="0" width="3" height="30" fill="black" />
+                    <rect x="67" y="0" width="4" height="30" fill="black" />
+                    <rect x="74" y="0" width="2" height="30" fill="black" />
+                    <rect x="78" y="0" width="1" height="30" fill="black" />
+                    <rect x="82" y="0" width="5" height="30" fill="black" />
+                    <rect x="90" y="0" width="3" height="30" fill="black" />
+                    <rect x="95" y="0" width="2" height="30" fill="black" />
+                    <rect x="100" y="0" width="4" height="30" fill="black" />
+                    <rect x="107" y="0" width="2" height="30" fill="black" />
+                    <rect x="111" y="0" width="5" height="30" fill="black" />
+                    <rect x="119" y="0" width="2" height="30" fill="black" />
+                    <rect x="123" y="0" width="3" height="30" fill="black" />
+                    <rect x="128" y="0" width="1" height="30" fill="black" />
+                    <rect x="132" y="0" width="4" height="30" fill="black" />
+                    <rect x="138" y="0" width="2" height="30" fill="black" />
+                    <rect x="143" y="0" width="5" height="30" fill="black" />
+                    <rect x="151" y="0" width="2" height="30" fill="black" />
+                    <rect x="155" y="0" width="3" height="30" fill="black" />
+                  </svg>
+                  <span className="font-mono text-[10px] tracking-[0.2em] font-bold mt-0.5">
+                    *{receiptOrder.orderNumber}*
+                  </span>
+                </div>
+
+                {/* Thermal Footer */}
+                <div className="text-center space-y-1 pt-1 text-[10px] text-slate-700">
+                  <div className="font-bold uppercase tracking-wider">
+                    * THANK YOU FOR CHOOSING ÉCLAT DE ROSE *
+                  </div>
+                  <div>100% French & Grasse Artisanal Parfums</div>
+                  <div>Please inspect packaging before receiving</div>
+                  <div>Exchange within 7 days with this slip</div>
+                  <div className="pt-2 text-slate-400 font-bold select-none text-[9px]">
+                    - - - - - - - [ TEAR HERE ] - - - - - - -
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* DRAWER: SHOPPING BAG & BANGLADESH CHECKOUT */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/50 backdrop-blur-sm">
@@ -3725,6 +4168,101 @@ git push -u origin main`}</pre>
           </div>
         </div>
       </footer>
+
+      {/* Mobile Bottom Navigation Bar (md:hidden) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-rose-200/80 shadow-[0_-4px_25px_rgba(244,114,182,0.18)] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="grid grid-cols-5 h-16 items-center px-2">
+          <button
+            onClick={() => setActiveView('storefront')}
+            className={`flex flex-col items-center justify-center gap-1 transition-all ${
+              activeView === 'storefront' ? 'text-rose-600 font-extrabold scale-105' : 'text-slate-500 hover:text-rose-600'
+            }`}
+          >
+            <Sparkles className="w-5 h-5" />
+            <span className="text-[10px]">Atelier</span>
+          </button>
+          <button
+            onClick={() => {
+              setQuizStep(0);
+              setIsQuizOpen(true);
+            }}
+            className="flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-rose-600 transition-all"
+          >
+            <Droplets className="w-5 h-5 text-rose-500" />
+            <span className="text-[10px]">Quiz</span>
+          </button>
+          <button
+            onClick={() => setActiveView('track-order')}
+            className={`flex flex-col items-center justify-center gap-1 transition-all ${
+              activeView === 'track-order' ? 'text-rose-600 font-extrabold scale-105' : 'text-slate-500 hover:text-rose-600'
+            }`}
+          >
+            <Truck className="w-5 h-5" />
+            <span className="text-[10px]">Track</span>
+          </button>
+          <button
+            onClick={() => {
+              setCheckoutStep('cart');
+              setIsCartOpen(true);
+            }}
+            className="relative flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-rose-600 transition-all"
+          >
+            <div className="relative">
+              <ShoppingBag className="w-5 h-5" />
+              {cart.length > 0 && (
+                <span className="absolute -top-1.5 -right-2 px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-extrabold">
+                  {cart.reduce((s, i) => s + i.quantity, 0)}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px]">Bag</span>
+          </button>
+          <button
+            onClick={() => setActiveView('admin')}
+            className={`flex flex-col items-center justify-center gap-1 transition-all ${
+              activeView === 'admin' ? 'text-rose-600 font-extrabold scale-105' : 'text-slate-500 hover:text-rose-600'
+            }`}
+          >
+            <Lock className="w-5 h-5" />
+            <span className="text-[10px]">Admin</span>
+          </button>
+        </div>
+      </div>
+
+      {/* iOS Safari Guided Install Modal */}
+      {showIOSGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-[2rem] bg-white p-6 shadow-2xl border border-rose-200 text-center animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 text-white flex items-center justify-center mx-auto mb-3 shadow-lg shadow-rose-200">
+              <Sparkles className="w-7 h-7" />
+            </div>
+            <h3 className="font-serif-luxury text-2xl font-bold text-slate-900">Install Éclat de Rose</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-4">
+              Add to your iPhone or iPad Home Screen for quick access and full-screen luxury experience.
+            </p>
+            <div className="p-4 rounded-2xl bg-rose-50/80 border border-rose-200 text-left text-xs text-slate-700 space-y-2.5">
+              <div className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</span>
+                <span>Tap the <strong>Share button</strong> (square with up arrow) in the Safari toolbar.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</span>
+                <span>Scroll down and tap <strong>"Add to Home Screen"</strong>.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">3</span>
+                <span>Tap <strong>"Add"</strong> in the top right.</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowIOSGuide(false)}
+              className="mt-5 w-full rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 py-3.5 text-xs font-bold text-white shadow-lg shadow-rose-300/50 hover:opacity-95 transition-all"
+            >
+              Done / Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

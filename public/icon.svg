@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="gradBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff1f2"/>
+      <stop offset="50%" stop-color="#ffe4e6"/>
+      <stop offset="100%" stop-color="#fecdd3"/>
+    </linearGradient>
+    <linearGradient id="gradBottle" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e11d48"/>
+      <stop offset="50%" stop-color="#db2777"/>
+      <stop offset="100%" stop-color="#be185d"/>
+    </linearGradient>
+    <linearGradient id="gradGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#gradBg)"/>
+  <rect x="220" y="80" width="72" height="48" rx="8" fill="url(#gradGold)"/>
+  <rect x="236" y="128" width="40" height="24" fill="url(#gradGold)"/>
+  <!-- Bottle body -->
+  <path d="M 140 180 C 140 152 160 152 236 152 L 276 152 C 352 152 372 152 372 180 L 388 380 C 392 416 364 440 336 440 L 176 440 C 148 440 120 416 124 380 Z" fill="url(#gradBottle)" />
+  <!-- Glass highlights -->
+  <path d="M 160 190 L 170 390 C 172 406 182 414 196 414 L 180 414 C 160 414 150 400 148 380 L 138 210 Z" fill="#ffffff" opacity="0.3"/>
+  <!-- Rose emblem inside bottle -->
+  <circle cx="256" cy="300" r="48" fill="none" stroke="url(#gradGold)" stroke-width="6"/>
+  <path d="M 256 270 Q 276 285 256 305 Q 236 325 256 335" fill="none" stroke="url(#gradGold)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M 235 285 Q 256 270 277 285" fill="none" stroke="url(#gradGold)" stroke-width="4" stroke-linecap="round"/>
+</svg>

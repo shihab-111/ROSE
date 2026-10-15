@@ -2,5 +2,7 @@
   "name": "Éclat de Rose — Luxury Parfumerie & Rose Ouds",
   "description": "Artisanal French Extraits de Parfum & Rose Ouds boutique featuring interactive scent profiling, live luxury catalog, decant sizing, Bangladesh express checkout, and executive admin suite.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
