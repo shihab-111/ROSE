@@ -2595,7 +2595,14 @@ export default function App() {
                               className="flex items-center justify-between p-3 rounded-2xl bg-white/85 border border-rose-100"
                             >
                               <div className="flex items-center gap-3">
-                                <img src={p.image} alt={p.name} className="w-11 h-11 rounded-xl object-cover" />
+                                <img
+                                  src={p.image}
+                                  alt={p.name}
+                                  onError={handleImageError}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="w-11 h-11 rounded-xl object-cover"
+                                />
                                 <div>
                                   <h4 className="font-bold text-xs text-slate-900">{p.name}</h4>
                                   <span className="text-[11px] text-slate-500">
@@ -2717,6 +2724,9 @@ export default function App() {
                                 <img
                                   src={prod.image}
                                   alt={prod.name}
+                                  onError={handleImageError}
+                                  loading="lazy"
+                                  decoding="async"
                                   className="w-12 h-12 rounded-xl object-cover border border-rose-200 shrink-0"
                                 />
                                 <div>
@@ -3343,6 +3353,9 @@ export default function App() {
                           <img
                             src={bannerForm.bannerImage}
                             alt="Banner Preview"
+                            onError={handleImageError}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover"
                           />
                           <div className="absolute bottom-3 left-3 right-3 glass-card p-3 rounded-xl flex justify-between items-center">
@@ -3753,6 +3766,9 @@ git push -u origin main`}</pre>
                     <img
                       src={productForm.image}
                       alt="Preview"
+                      onError={handleImageError}
+                      loading="lazy"
+                      decoding="async"
                       className="w-16 h-16 rounded-2xl object-cover border border-rose-300 shadow-sm"
                     />
                   </div>
@@ -3777,6 +3793,9 @@ git push -u origin main`}</pre>
                         <img
                           src={preset.url}
                           alt={preset.label}
+                          onError={handleImageError}
+                          loading="lazy"
+                          decoding="async"
                           className="w-7 h-7 rounded-lg object-cover"
                         />
                         <span className="text-[11px] font-bold">{preset.label}</span>
@@ -4041,6 +4060,9 @@ git push -u origin main`}</pre>
                 <img
                   src={recommendedQuizProduct.image}
                   alt={recommendedQuizProduct.name}
+                  onError={handleImageError}
+                  loading="lazy"
+                  decoding="async"
                   className="w-40 h-44 object-cover rounded-2xl mx-auto border border-rose-200 shadow-md"
                 />
                 <p className="text-xs text-slate-600 max-w-md mx-auto">
@@ -4740,7 +4762,7 @@ COD Collection: ৳${receiptOrder.paymentMethod === 'COD' ? receiptOrder.totalAm
             </div>
 
             {cart.length > 0 && checkoutStep !== 'success' && (
-              <div className="p-5 bg-white border-t border-rose-100 space-y-3">
+              <div className="p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] bg-white border-t border-rose-100 space-y-3">
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>Subtotal</span>

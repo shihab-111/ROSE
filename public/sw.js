@@ -39,6 +39,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const url = new URL(request.url);
+
+  // CRITICAL: Never intercept Firebase/Firestore/Google Auth or Vite HMR/dev routes
+  if (
+    url.hostname.includes('googleapis.com') ||
+    url.hostname.includes('firebaseio.com') ||
+    url.hostname.includes('firebaseapp.com') ||
+    url.hostname.includes('google.com') ||
+    url.pathname.startsWith('/@vite') ||
+    url.pathname.startsWith('/@fs') ||
+    url.pathname.startsWith('/node_modules') ||
+    url.pathname.includes('vite') ||
+    url.pathname.includes('hmr')
+  ) {
+    return;
+  }
+
   // Navigation requests (HTML pages)
   if (request.mode === 'navigate') {
     event.respondWith(
@@ -80,7 +97,7 @@ self.addEventListener('fetch', (event) => {
           .then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
               const clone = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
             }
             return networkResponse;
           })
@@ -99,7 +116,7 @@ self.addEventListener('fetch', (event) => {
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
           }
           return networkResponse;
         })
