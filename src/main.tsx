@@ -41,9 +41,17 @@ class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
               We encountered a slight display glitch while optimizing for your mobile device network.
             </p>
             <button
-              onClick={() => {
+              onClick={async () => {
                 try {
                   localStorage.clear();
+                  if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                  }
+                  if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    for (const r of regs) await r.unregister();
+                  }
                 } catch {}
                 window.location.reload();
               }}
@@ -71,6 +79,7 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     navigator.serviceWorker
       .register('/sw.js')
       .then((reg) => {
+        reg.update().catch(() => {});
         console.log('Éclat de Rose PWA ServiceWorker active:', reg.scope);
       })
       .catch((err) => {

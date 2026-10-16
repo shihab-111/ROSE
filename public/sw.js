@@ -1,5 +1,5 @@
 // Service Worker for Éclat de Rose Luxury Parfumerie PWA
-const CACHE_NAME = 'eclat-de-rose-v1.2';
+const CACHE_NAME = 'eclat-de-rose-v2.0';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -11,7 +11,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('SW static pre-cache partial notice:', err);
+        console.warn('SW static pre-cache notice:', err);
       });
     }).then(() => self.skipWaiting())
   );
@@ -23,6 +23,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('Purging legacy cache:', key);
             return caches.delete(key);
           }
         })
@@ -47,6 +48,7 @@ self.addEventListener('fetch', (event) => {
     url.hostname.includes('firebaseio.com') ||
     url.hostname.includes('firebaseapp.com') ||
     url.hostname.includes('google.com') ||
+    url.hostname.includes('run.app') && url.pathname.includes('cookie') ||
     url.pathname.startsWith('/@vite') ||
     url.pathname.startsWith('/@fs') ||
     url.pathname.startsWith('/node_modules') ||
@@ -56,38 +58,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navigation requests (HTML pages)
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(request);
-          if (cached) return cached;
-          const fallback = await caches.match('/index.html') || await caches.match('/');
-          return fallback || new Response('Offline - Éclat de Rose', {
-            headers: { 'Content-Type': 'text/html' }
-          });
-        })
-    );
-    return;
-  }
-
   // Image caching (Unsplash, static icons)
   if (request.destination === 'image') {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
         if (cachedResponse) {
-          // Revalidate in background
           fetch(request).then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse));
+              const clone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
             }
           }).catch(() => {});
           return cachedResponse;
@@ -101,28 +80,35 @@ self.addEventListener('fetch', (event) => {
             }
             return networkResponse;
           })
-          .catch(() => {
-            return caches.match('/icon.svg');
-          });
+          .catch(() => caches.match('/icon.svg'));
       })
     );
     return;
   }
 
-  // Standard Stale-While-Revalidate for scripts, styles, fonts
+  // Network-First for Navigation and Scripts/CSS
+  // Ensures all devices immediately get fresh code and prevents stale chunk load failures
   event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      const fetchPromise = fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
-
-      return cachedResponse || fetchPromise;
-    })
+    fetch(request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const clone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+        }
+        return networkResponse;
+      })
+      .catch(async () => {
+        // Offline fallback
+        const cached = await caches.match(request);
+        if (cached) return cached;
+        if (request.mode === 'navigate') {
+          const fallback = await caches.match('/index.html') || await caches.match('/');
+          if (fallback) return fallback;
+        }
+        return new Response('Offline - Éclat de Rose', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain' }
+        });
+      })
   );
 });
