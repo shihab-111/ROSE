@@ -118,7 +118,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 onClick={() =>
                   setSelectedVolumes((prev) => ({ ...prev, [product.id]: vol }))
                 }
-                className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                className={`flex-1 py-1.5 min-h-[32px] rounded-lg text-[10px] font-bold border transition-all touch-manipulation active:scale-95 ${
                   activeVol === vol
                     ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
                     : 'bg-white/80 text-slate-600 border-rose-200/80 hover:bg-rose-50'
@@ -167,9 +167,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           <button
             onClick={() => addToCart(product, 1, activeVol)}
             disabled={product.stock <= 0}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all ${
+            className={`px-4 py-2.5 min-h-[42px] rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all touch-manipulation active:scale-95 ${
               product.stock > 0
-                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-md shadow-rose-200 hover:shadow-lg hover:scale-105'
+                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-md shadow-rose-200 hover:shadow-lg'
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >

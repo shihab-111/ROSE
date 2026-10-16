@@ -36,68 +36,70 @@ const MainLayout: React.FC = () => {
         @keyframes liquidMorph1 {
           0%, 100% {
             border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
-            transform: translate(0px, 0px) scale(1) rotate(0deg);
+            transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
           }
           33% {
-            border-radius: 35% 65% 65% 35% / 45% 55% 45% 55%;
-            transform: translate(65px, -35px) scale(1.1) rotate(8deg);
+            border-radius: 45% 55% 65% 35% / 45% 55% 45% 55%;
+            transform: translate3d(45px, -25px, 0) scale(1.06) rotate(6deg);
           }
           66% {
             border-radius: 50% 50% 35% 65% / 55% 35% 65% 45%;
-            transform: translate(-35px, 45px) scale(0.94) rotate(-6deg);
+            transform: translate3d(-25px, 35px, 0) scale(0.96) rotate(-5deg);
           }
         }
 
         @keyframes liquidMorph2 {
           0%, 100% {
             border-radius: 40% 60% 60% 40% / 50% 60% 40% 50%;
-            transform: translate(0px, 0px) scale(1) rotate(0deg);
+            transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
           }
           50% {
-            border-radius: 65% 35% 45% 55% / 40% 45% 55% 60%;
-            transform: translate(-75px, 50px) scale(1.14) rotate(-10deg);
+            border-radius: 55% 45% 45% 55% / 45% 55% 55% 45%;
+            transform: translate3d(-50px, 35px, 0) scale(1.08) rotate(-8deg);
           }
         }
 
         @keyframes liquidMorph3 {
           0%, 100% {
             border-radius: 55% 45% 40% 60% / 45% 55% 45% 55%;
-            transform: translate(0px, 0px) scale(1);
+            transform: translate3d(0px, 0px, 0) scale(1);
           }
           50% {
-            border-radius: 35% 65% 60% 40% / 60% 40% 60% 40%;
-            transform: translate(55px, -60px) scale(1.12);
+            border-radius: 40% 60% 55% 45% / 55% 45% 55% 45%;
+            transform: translate3d(35px, -45px, 0) scale(1.07);
           }
         }
 
         @keyframes prismBeamSweep {
-          0%, 100% { transform: translateX(-12%) rotate(32deg) scaleY(1); opacity: 0.45; }
-          50% { transform: translateX(18%) rotate(32deg) scaleY(1.08); opacity: 0.85; }
+          0%, 100% { transform: translate3d(-10%, 0, 0) rotate(32deg) scaleY(1); opacity: 0.35; }
+          50% { transform: translate3d(14%, 0, 0) rotate(32deg) scaleY(1.05); opacity: 0.7; }
         }
 
         @keyframes bottleLevitate {
-          0%, 100% { transform: translateY(0px) rotate(-1deg); }
-          50% { transform: translateY(-12px) rotate(1.2deg); }
+          0%, 100% { transform: translate3d(0, 0px, 0) rotate(-0.8deg); }
+          50% { transform: translate3d(0, -10px, 0) rotate(1deg); }
         }
 
-        .animate-liquid-blob-1 { animation: liquidMorph1 18s ease-in-out infinite; }
-        .animate-liquid-blob-2 { animation: liquidMorph2 22s ease-in-out infinite; }
-        .animate-liquid-blob-3 { animation: liquidMorph3 20s ease-in-out infinite; }
-        .animate-prism-beam-1 { animation: prismBeamSweep 14s ease-in-out infinite; }
-        .animate-prism-beam-2 { animation: prismBeamSweep 19s ease-in-out infinite reverse; }
-        .animate-bottle { animation: bottleLevitate 6s ease-in-out infinite; }
+        .animate-liquid-blob-1 { animation: liquidMorph1 20s ease-in-out infinite; will-change: transform; }
+        .animate-liquid-blob-2 { animation: liquidMorph2 24s ease-in-out infinite; will-change: transform; }
+        .animate-liquid-blob-3 { animation: liquidMorph3 22s ease-in-out infinite; will-change: transform; }
+        .animate-prism-beam-1 { animation: prismBeamSweep 16s ease-in-out infinite; will-change: transform; }
+        .animate-prism-beam-2 { animation: prismBeamSweep 20s ease-in-out infinite reverse; will-change: transform; }
+        .animate-bottle { animation: bottleLevitate 6s ease-in-out infinite; will-change: transform; }
 
         .glass-card {
-          background: rgba(255, 255, 255, 0.75);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
+          background: rgba(255, 255, 255, 0.80);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
           border: 1px solid rgba(251, 207, 232, 0.8);
+          transform: translateZ(0);
         }
         .glass-nav {
-          background: rgba(255, 249, 251, 0.85);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
+          background: rgba(255, 249, 251, 0.88);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
           border-bottom: 1px solid rgba(244, 114, 182, 0.22);
+          transform: translateZ(0);
         }
       `}</style>
 
@@ -126,7 +128,7 @@ const MainLayout: React.FC = () => {
 
       {/* Active View Container */}
       {activeView === 'storefront' && (
-        <main className="relative z-10 pb-24">
+        <main className="relative z-10 pb-28 sm:pb-24">
           <HeroBanner />
           <FilterBar />
           <ProductGrid />
@@ -134,9 +136,17 @@ const MainLayout: React.FC = () => {
         </main>
       )}
 
-      {activeView === 'track-order' && <OrderTrackingView />}
+      {activeView === 'track-order' && (
+        <main className="relative z-10 pb-28 sm:pb-24">
+          <OrderTrackingView />
+        </main>
+      )}
 
-      {activeView === 'admin' && <AdminDashboard />}
+      {activeView === 'admin' && (
+        <main className="relative z-10 pb-28 sm:pb-24">
+          <AdminDashboard />
+        </main>
+      )}
 
       {/* Global Modals & Drawers */}
       <QuickViewModal />

@@ -32,10 +32,10 @@ export const HeroBanner: React.FC = () => {
                 {storeConfig.bannerSubtitle}
               </p>
 
-              <div className="flex flex-wrap items-center gap-4 pt-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pt-2">
                 <a
                   href="#catalog"
-                  className="px-8 py-4 rounded-full bg-gradient-to-r from-rose-600 via-pink-600 to-rose-600 text-white font-semibold text-sm sm:text-base shadow-xl shadow-rose-300/60 hover:shadow-rose-400/80 hover:-translate-y-0.5 transition-all flex items-center gap-2"
+                  className="px-8 py-4 rounded-full bg-gradient-to-r from-rose-600 via-pink-600 to-rose-600 text-white font-semibold text-sm sm:text-base shadow-xl shadow-rose-300/60 hover:shadow-rose-400/80 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
                 >
                   {storeConfig.bannerCta}
                   <ArrowRight className="w-4 h-4" />
@@ -46,14 +46,14 @@ export const HeroBanner: React.FC = () => {
                     setQuizStep(0);
                     setIsQuizOpen(true);
                   }}
-                  className="px-6 py-4 rounded-full bg-white/90 hover:bg-rose-50 text-rose-700 border border-rose-200 font-semibold text-sm sm:text-base shadow-sm transition-all flex items-center gap-2"
+                  className="px-6 py-4 rounded-full bg-white/90 hover:bg-rose-50 text-rose-700 border border-rose-200 font-semibold text-sm sm:text-base shadow-sm transition-all flex items-center justify-center gap-2"
                 >
                   <Droplets className="w-4 h-4 text-rose-500" />
                   Find Your Signature Scent
                 </button>
               </div>
 
-              <div className="pt-6 border-t border-rose-200/60 grid grid-cols-3 gap-4 max-w-lg">
+              <div className="pt-6 border-t border-rose-200/60 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 max-w-lg">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
                     <ShieldCheck className="w-5 h-5" />

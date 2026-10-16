@@ -49,7 +49,7 @@ export const AdminDashboard: React.FC = () => {
   ];
 
   return (
-    <section className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <section className="relative z-10 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10 pb-28 sm:pb-16">
       <div className="space-y-8">
         {/* Header Navigation Bar */}
         <div className="glass-card rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4 shadow-md">

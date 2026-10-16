@@ -23,7 +23,7 @@ export const OrderTrackingView: React.FC = () => {
   );
 
   return (
-    <section className="relative z-10 max-w-4xl mx-auto px-4 py-12">
+    <section className="relative z-10 max-w-4xl mx-auto px-4 py-8 sm:py-12 pb-24 sm:pb-16">
       <div className="glass-card rounded-[2rem] p-6 sm:p-10 shadow-xl">
         <div className="text-center max-w-xl mx-auto mb-8">
           <span className="px-3.5 py-1 rounded-full bg-rose-100 text-rose-700 text-xs font-bold uppercase tracking-widest">
