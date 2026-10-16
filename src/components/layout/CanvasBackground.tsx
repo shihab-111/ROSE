@@ -110,8 +110,11 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({ mode }) => {
       }
     };
 
+    let lastUserTouch = 0;
+
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches && e.touches[0]) {
+        lastUserTouch = Date.now();
         mouse.targetX = e.touches[0].clientX;
         mouse.targetY = e.touches[0].clientY;
       }
@@ -119,6 +122,7 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({ mode }) => {
 
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches && e.touches[0]) {
+        lastUserTouch = Date.now();
         mouse.targetX = e.touches[0].clientX;
         mouse.targetY = e.touches[0].clientY;
       }
@@ -153,23 +157,24 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({ mode }) => {
     const render = () => {
       if (!isRunning) return;
 
-      tick += isMobile ? 0.009 : 0.012;
+      try {
+        tick += isMobile ? 0.009 : 0.012;
 
-      // On mobile, gently ambiently oscillate target if no touch is active
-      if (isMobile) {
-        mouse.targetX = cssWidth * 0.5 + Math.sin(tick * 0.8) * (cssWidth * 0.25);
-        mouse.targetY = cssHeight * 0.35 + Math.cos(tick * 0.6) * (cssHeight * 0.15);
-      }
+        // On mobile, gently ambiently oscillate target only if no active touch recently
+        if (isMobile && Date.now() - lastUserTouch > 2500) {
+          mouse.targetX = cssWidth * 0.5 + Math.sin(tick * 0.8) * (cssWidth * 0.25);
+          mouse.targetY = cssHeight * 0.35 + Math.cos(tick * 0.6) * (cssHeight * 0.15);
+        }
 
-      mouse.x += (mouse.targetX - mouse.x) * 0.05;
-      mouse.y += (mouse.targetY - mouse.y) * 0.05;
+        mouse.x += (mouse.targetX - mouse.x) * 0.05;
+        mouse.y += (mouse.targetY - mouse.y) * 0.05;
 
-      ctx.save();
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, cssWidth, cssHeight);
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-      // Subtle aura radial glow
-      const glowRadius = Math.min(cssWidth, cssHeight) * (isMobile ? 0.55 : 0.42);
+        // Subtle aura radial glow
+        const glowRadius = Math.min(cssWidth, cssHeight) * (isMobile ? 0.55 : 0.42);
       const cursorGrad = ctx.createRadialGradient(
         mouse.x,
         mouse.y,
@@ -293,8 +298,11 @@ export const CanvasBackground: React.FC<CanvasBackgroundProps> = ({ mode }) => {
       }
 
       ctx.restore();
-      animationFrameId = requestAnimationFrame(render);
-    };
+    } catch (err) {
+      console.warn("Canvas render tick catch:", err);
+    }
+    animationFrameId = requestAnimationFrame(render);
+  };
 
     animationFrameId = requestAnimationFrame(render);
 

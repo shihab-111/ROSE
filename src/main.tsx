@@ -40,10 +40,16 @@ class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
             <p className="text-xs text-slate-600 leading-relaxed">
               We encountered a slight display glitch while optimizing for your mobile device network.
             </p>
+            {this.state.error?.message && (
+              <div className="p-3 rounded-xl bg-rose-50 text-[11px] text-rose-700 font-mono text-left overflow-x-auto">
+                {this.state.error.message}
+              </div>
+            )}
             <button
               onClick={async () => {
                 try {
                   localStorage.clear();
+                  sessionStorage.clear();
                   if ('caches' in window) {
                     const keys = await caches.keys();
                     await Promise.all(keys.map(k => caches.delete(k)));
@@ -57,7 +63,7 @@ class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
               }}
               className="px-6 py-3 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 text-white font-bold text-xs shadow-md shadow-rose-200 hover:opacity-95 transition-all"
             >
-              Reload Luxury Boutique
+              Reset & Reload Luxury Boutique
             </button>
           </div>
         </div>
@@ -67,23 +73,24 @@ class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
   }
 }
 
+// Actively unregister any legacy service workers and clear stale caches on mobile devices
+if (typeof window !== 'undefined') {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const reg of registrations) {
+        reg.unregister().catch(() => {});
+      }
+    }).catch(() => {});
+  }
+  if ('caches' in window) {
+    caches.keys().then((keys) => {
+      for (const key of keys) caches.delete(key).catch(() => {});
+    }).catch(() => {});
+  }
+}
+
 createRoot(document.getElementById('root')!).render(
   <RootErrorBoundary>
     <App />
   </RootErrorBoundary>
 );
-
-// Register Service Worker for mobile device & network speedup
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((reg) => {
-        reg.update().catch(() => {});
-        console.log('Éclat de Rose PWA ServiceWorker active:', reg.scope);
-      })
-      .catch((err) => {
-        console.warn('ServiceWorker registration deferred:', err);
-      });
-  });
-}
